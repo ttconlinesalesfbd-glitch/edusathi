@@ -33,14 +33,5 @@ workflows:
       - name: Build iOS IPA
         script: flutter build ipa --release
 
-      - name: Build Android APK
-        script: flutter build apk --release
-
     artifacts:
-      - build/app/outputs/**/*.apk
       - build/ios/ipa/*.ipa
-
-    publishing:
-      email:
-        recipients:
-          - "ayushbiharsharif@gmail.com"
