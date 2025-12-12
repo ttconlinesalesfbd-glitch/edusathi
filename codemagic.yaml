@@ -6,7 +6,7 @@ workflows:
       flutter: stable
       xcode: latest
       groups:
-        - ios_credentials   # contains p12 and API key variables
+        - ios_credentials   # MUST contain .p12 + passwords + API key
 
     scripts:
       - name: Install dependencies
@@ -15,7 +15,7 @@ workflows:
       - name: Set up certificate
         script: |
           keychain initialize
-          keychain add-certificates
+          keychain add-certificates   # installs your .p12 into mac keychain
 
       - name: Fetch signing files
         script: |
@@ -23,6 +23,8 @@ workflows:
             --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
             --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
             --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
+            --certificate-key "$CERTIFICATE_PRIVATE_KEY" \
+            --certificate-key-password "$CERTIFICATE_PASSWORD" \
             --platform IOS \
             --type IOS_APP_STORE \
             --create
