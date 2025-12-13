@@ -1,37 +1,38 @@
 workflows:
-  flutter-ios-android:
-    name: Flutter iOS & Android Build
+  ios-release:
+    name: iOS Release Build
     max_build_duration: 60
+
     environment:
       flutter: stable
       xcode: latest
       groups:
-        - ios_credentials   # API key group
+        - ios_credentials
 
     scripts:
       - name: Install dependencies
         script: flutter pub get
 
-      - name: Set up certificate
-        script: |
-          keychain initialize
-          keychain add-certificates   # loads uploaded .p12
-
       - name: Fetch signing files
         script: |
           app-store-connect fetch-signing-files "com.techinnovationapp.edusathi" \
-            --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
-            --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
-            --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
-            --platform IOS \
             --type IOS_APP_STORE \
+            --platform IOS \
             --create
 
-      - name: Apply signing to Xcode project
+      - name: Apply signing
         script: xcode-project use-profiles
 
-      - name: Build iOS IPA
+      - name: Build IPA
         script: flutter build ipa --release
 
     artifacts:
       - build/ios/ipa/*.ipa
+
+    publishing:
+      app_store_connect:
+        api_key:
+          key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+          issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+          key: $APP_STORE_CONNECT_PRIVATE_KEY
+        submit_to_testflight: true
