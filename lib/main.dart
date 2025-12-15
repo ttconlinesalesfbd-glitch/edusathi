@@ -5,13 +5,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:student_app/dashboard/dashboard_screen.dart';
 import 'package:student_app/splash_screen.dart';
 import 'package:student_app/teacher/teacher_dashboard_screen.dart';
+import 'firebase_options.dart';
+
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 /// Background notification handler
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 }
+
 
 /// Main function
 Future<void> main() async {
