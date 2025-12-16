@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:student_app/dashboard/dashboard_screen.dart';
@@ -21,7 +23,26 @@ class _LoginPageState extends State<LoginPage> {
   String _errorMessage = '';
   String selectedRole = 'Student';
 
-  void _login() async {
+  final FlutterSecureStorage secureStorage = FlutterSecureStorage(
+    aOptions: const AndroidOptions(encryptedSharedPreferences: true),
+    iOptions: const IOSOptions(
+      accessibility: KeychainAccessibility.first_unlock,
+    ),
+  );
+  @override
+  void dispose() {
+    idController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _login() async {
+    if (idController.text.trim().isEmpty ||
+        passwordController.text.trim().isEmpty) {
+      setState(() => _errorMessage = "Please enter ID and password");
+      return;
+    }
+
     setState(() {
       _isLoading = true;
       _errorMessage = '';
@@ -30,118 +51,118 @@ class _LoginPageState extends State<LoginPage> {
     final url = Uri.parse('$baseUrl/login');
 
     try {
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: jsonEncode({
-          'username': idController.text.trim(),
-          'password': passwordController.text.trim(),
-          'type': selectedRole,
-        }),
-      );
+      final response = await http
+          .post(
+            url,
+            headers: const {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: jsonEncode({
+              'username': idController.text.trim(),
+              'password': passwordController.text,
+              'type': selectedRole,
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode != 200) {
+        throw Exception("Server error ${response.statusCode}");
+      }
 
       final data = jsonDecode(response.body);
 
-      if (response.statusCode == 200 && data['status'] == true) {
+      if (data['status'] == true && data['token'] != null) {
+        // ✅ Clear only AFTER success
         final prefs = await SharedPreferences.getInstance();
         await prefs.clear();
+
         await prefs.setBool('isLoggedIn', true);
-        await prefs.setString('token', data['token']);
         await prefs.setString('user_type', data['user_type']);
 
+        // 🔐 Store token securely
+        await secureStorage.write(key: 'auth_token', value: data['token']);
+
+        final profile = data['profile'] ?? {};
+
         if (data['user_type'] == 'Student') {
-          await prefs.setString(
-            'student_name',
-            data['profile']['student_name'] ?? '',
-          );
+          await prefs.setString('student_name', profile['student_name'] ?? '');
           await prefs.setString(
             'student_photo',
-            data['profile']['student_photo'] ?? '',
+            profile['student_photo'] ?? '',
           );
-          await prefs.setString(
-            'class_name',
-            data['profile']['class_name'] ?? '',
-          );
-          await prefs.setString(
-            'school_name',
-            data['profile']['school_name'] ?? '',
-          );
-          await prefs.setString('section', data['profile']['section'] ?? '');
+          await prefs.setString('class_name', profile['class_name'] ?? '');
+          await prefs.setString('section', profile['section'] ?? '');
+          await prefs.setString('school_name', profile['school_name'] ?? '');
         } else if (data['user_type'] == 'Teacher') {
-          await prefs.setString('teacher_name', data['profile']['name']);
-          await prefs.setString('teacher_photo', data['profile']['photo']);
-          await prefs.setString('teacher_class', data['profile']['class']);
-          await prefs.setString('teacher_section', data['profile']['section']);
-          await prefs.setString('school_name', data['profile']['school'] ?? '');
+          await prefs.setString('teacher_name', profile['name'] ?? '');
+          await prefs.setString('teacher_photo', profile['photo'] ?? '');
+          await prefs.setString('teacher_class', profile['class'] ?? '');
+          await prefs.setString('teacher_section', profile['section'] ?? '');
+          await prefs.setString('school_name', profile['school'] ?? '');
         }
+
+        // 🔐 Clear password from memory
+        passwordController.clear();
 
         await sendFcmTokenToLaravel();
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${data['user_type']} Logged in successfully'),
+        if (!mounted) return;
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => data['user_type'] == 'Student'
+                ? DashboardScreen()
+                : TeacherDashboardScreen(),
           ),
         );
-
-        if (data['user_type'] == 'Student') {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => DashboardScreen()),
-          );
-        } else {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => TeacherDashboardScreen()),
-          );
-        }
       } else {
         setState(() {
           _errorMessage =
               data['message'] ?? "Invalid credentials. Please try again.";
         });
       }
+    } on TimeoutException {
+      setState(() => _errorMessage = "Server timeout. Try again.");
     } catch (e) {
-      print("🔴 Login Exception: $e");
-      setState(() {
-        _errorMessage = 'Something went wrong. Please try again later.';
-      });
+      debugPrint("🔴 Login Error: $e");
+      setState(() => _errorMessage = "Something went wrong. Try later.");
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
-
-    setState(() {
-      _isLoading = false;
-    });
   }
 
   Future<void> sendFcmTokenToLaravel() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token') ?? '';
+    final authToken = await secureStorage.read(key: 'auth_token');
     final fcmToken = await FirebaseMessaging.instance.getToken();
 
-    if (fcmToken == null) {
-      print('❌ FCM token not found');
+    if (authToken == null || authToken.isEmpty) {
+      debugPrint('❌ Auth token missing');
       return;
     }
 
-    final response = await http.post(
-      Uri.parse('https://school.edusathi.in/api/save_token'),
+    if (fcmToken == null) {
+      debugPrint('❌ FCM token not found');
+      return;
+    }
 
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: jsonEncode({'fcm_token': fcmToken}),
-    );
-    print("🔵 Status Code: ${response.statusCode}");
-    print("📦 Response Body: ${response.body}");
+    try {
+      final response = await http.post(
+        Uri.parse('https://school.edusathi.in/api/save_token'),
+        headers: {
+          'Authorization': 'Bearer $authToken',
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({'fcm_token': fcmToken}),
+      );
 
-    if (response.statusCode == 200) {
-      print('✅ FCM token saved successfully');
-    } else {
-      print('❌ Failed to save FCM token: ${response.body}');
+      debugPrint("🔵 FCM Status: ${response.statusCode}");
+    } catch (e) {
+      debugPrint("❌ FCM Error: $e");
     }
   }
 
