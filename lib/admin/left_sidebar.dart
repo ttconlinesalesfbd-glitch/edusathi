@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:student_app/Exam/exam_schedule.dart';
-import 'package:student_app/admin/admin_dashboard.dart';
+// import 'package:student_app/admin/admin_dashboard.dart';
 import 'package:student_app/alert/stu_alert.dart';
 import 'package:student_app/connect_teacher/teacher_chat_list.dart';
 import 'package:student_app/login_page.dart';

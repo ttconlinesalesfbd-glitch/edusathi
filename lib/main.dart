@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'firebase_options.dart';
@@ -10,7 +11,7 @@ import 'package:student_app/teacher/teacher_dashboard_screen.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
-/// 🔔 Background notification handler (safe, optional)
+/// 🔔 Background notification handler
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
@@ -20,7 +21,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  /// ✅ ONLY Firebase init here (CRITICAL for iOS)
+  /// ✅ Firebase init (SAFE for iOS/TestFlight)
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -45,7 +46,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
-/// 🔥 SAFE replacement of your old main() logic
+/// 🔥 SAFE ROOT DECIDER (iOS + TestFlight ready)
 class RootDecider extends StatefulWidget {
   const RootDecider({super.key});
 
@@ -56,25 +57,27 @@ class RootDecider extends StatefulWidget {
 class _RootDeciderState extends State<RootDecider> {
   Widget _screen = const SplashScreen();
 
+  final FlutterSecureStorage secureStorage =
+      const FlutterSecureStorage();
+
   @override
   void initState() {
     super.initState();
-
-    /// Delay ensures first frame renders (iOS requirement)
-    Future.delayed(const Duration(milliseconds: 300), _initApp);
+    _initApp();
   }
 
   Future<void> _initApp() async {
     try {
-      /// 🔔 Token (SAFE here, not in main)
-      await FirebaseMessaging.instance.getToken();
-
-      /// 🔐 SharedPreferences (your old logic)
       final prefs = await SharedPreferences.getInstance();
+
       final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
       final userType = prefs.getString('user_type') ?? '';
 
-      if (isLoggedIn) {
+      /// 🔐 CRITICAL: Validate token also
+      final token =
+          await secureStorage.read(key: 'auth_token') ?? '';
+
+      if (isLoggedIn && token.isNotEmpty) {
         if (userType == 'Teacher') {
           _screen = const TeacherDashboardScreen();
         } else if (userType == 'Student') {
@@ -83,10 +86,12 @@ class _RootDeciderState extends State<RootDecider> {
           _screen = const SplashScreen();
         }
       } else {
+        /// ❌ Invalid session → clean
+        await secureStorage.delete(key: 'auth_token');
+        await prefs.clear();
         _screen = const SplashScreen();
       }
-    } catch (e) {
-      /// ❗ Never crash app on iOS
+    } catch (_) {
       _screen = const SplashScreen();
     }
 

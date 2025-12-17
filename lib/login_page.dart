@@ -48,12 +48,14 @@ class _LoginPageState extends State<LoginPage> {
       _errorMessage = '';
     });
 
-    final url = Uri.parse('$baseUrl/login');
+    debugPrint("🚀 LOGIN STARTED");
+    debugPrint("👤 ROLE: $selectedRole");
+    debugPrint("👤 USERNAME: ${idController.text.trim()}");
 
     try {
       final response = await http
           .post(
-            url,
+            Uri.parse('$baseUrl/login'),
             headers: const {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
@@ -64,7 +66,10 @@ class _LoginPageState extends State<LoginPage> {
               'type': selectedRole,
             }),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 20));
+
+      debugPrint("🟢 LOGIN STATUS: ${response.statusCode}");
+      debugPrint("🟢 LOGIN BODY: ${response.body}");
 
       if (response.statusCode != 200) {
         throw Exception("Server error ${response.statusCode}");
@@ -73,15 +78,21 @@ class _LoginPageState extends State<LoginPage> {
       final data = jsonDecode(response.body);
 
       if (data['status'] == true && data['token'] != null) {
-        // ✅ Clear only AFTER success
         final prefs = await SharedPreferences.getInstance();
-        await prefs.clear();
 
+        // 🔐 SAVE SESSION FLAGS (REQUIRED FOR ANDROID)
         await prefs.setBool('isLoggedIn', true);
-        await prefs.setString('user_type', data['user_type']);
+        await prefs.setString('user_type', data['user_type'] ?? '');
 
-        // 🔐 Store token securely
+        // ✅ CRITICAL FIX (ANDROID NEEDS THIS)
+        await prefs.setString('auth_token', data['token']);
+
+        // 🔐 SAVE TOKEN SECURELY (IOS SAFE)
         await secureStorage.write(key: 'auth_token', value: data['token']);
+
+        debugPrint("✅ LOGIN SUCCESS");
+        debugPrint("🔑 TOKEN SAVED (Secure + Prefs)");
+        debugPrint("👤 USER TYPE: ${data['user_type']}");
 
         final profile = data['profile'] ?? {};
 
@@ -94,43 +105,42 @@ class _LoginPageState extends State<LoginPage> {
           await prefs.setString('class_name', profile['class_name'] ?? '');
           await prefs.setString('section', profile['section'] ?? '');
           await prefs.setString('school_name', profile['school_name'] ?? '');
-        } else if (data['user_type'] == 'Teacher') {
+        } else {
           await prefs.setString('teacher_name', profile['name'] ?? '');
-          await prefs.setString('teacher_photo', profile['photo'] ?? '');
-          await prefs.setString('teacher_class', profile['class'] ?? '');
-          await prefs.setString('teacher_section', profile['section'] ?? '');
           await prefs.setString('school_name', profile['school'] ?? '');
         }
 
-        // 🔐 Clear password from memory
+        debugPrint("💾 PROFILE SAVED");
         passwordController.clear();
 
-        await sendFcmTokenToLaravel();
-
         if (!mounted) return;
+
+        debugPrint("➡️ NAVIGATING TO DASHBOARD");
 
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
             builder: (_) => data['user_type'] == 'Student'
-                ? DashboardScreen()
-                : TeacherDashboardScreen(),
+                ? const DashboardScreen()
+                : const TeacherDashboardScreen(),
           ),
         );
       } else {
+        debugPrint("❌ LOGIN FAILED: ${data['message']}");
         setState(() {
-          _errorMessage =
-              data['message'] ?? "Invalid credentials. Please try again.";
+          _errorMessage = data['message'] ?? "Invalid login credentials";
         });
       }
     } on TimeoutException {
-      setState(() => _errorMessage = "Server timeout. Try again.");
+      debugPrint("⏱️ LOGIN TIMEOUT");
+      setState(() => _errorMessage = "Server timeout. Please try again.");
     } catch (e) {
-      debugPrint("🔴 Login Error: $e");
-      setState(() => _errorMessage = "Something went wrong. Try later.");
+      debugPrint("🚨 LOGIN EXCEPTION: $e");
+      setState(() => _errorMessage = "Login failed. Please try again.");
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
+        debugPrint("🔚 LOGIN PROCESS END");
       }
     }
   }
@@ -175,7 +185,7 @@ class _LoginPageState extends State<LoginPage> {
 
   Widget roleToggleSwitch() {
     return Container(
-      width: 300,
+      width: 250,
       height: 50,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(30),
@@ -190,33 +200,6 @@ class _LoginPageState extends State<LoginPage> {
       ),
       child: Row(
         children: [
-          //Admin tab
-          Expanded(
-            child: InkWell(
-              onTap: () => setState(() => selectedRole = 'Teacher'),
-              child: AnimatedContainer(
-                duration: Duration(milliseconds: 300),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(30),
-                  gradient: selectedRole == 'Teacher'
-                      ? LinearGradient(
-                          colors: [Colors.purple, Colors.deepPurple],
-                        )
-                      : null,
-                ),
-                child: Text(
-                  "Admin",
-                  style: TextStyle(
-                    color: selectedRole == 'Teacher'
-                        ? Colors.white
-                        : Colors.deepPurple,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-          ),
           // Student tab
           Expanded(
             child: InkWell(
