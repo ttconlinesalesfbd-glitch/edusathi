@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+import '../auth_helper.dart'; // 👈 make sure correct path
 
 class ChangePasswordPage extends StatefulWidget {
   const ChangePasswordPage({super.key});
@@ -19,65 +18,74 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
   bool isSubmitting = false;
 
   Future<void> handleChangePassword() async {
-    if (_formKey.currentState!.validate()) {
-      if (currentController.text == newController.text) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("New password cannot be same as current password"),
-          ),
-        );
-        return;
-      }
+    if (!_formKey.currentState!.validate()) return;
 
-      final confirm = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text("Confirm Change"),
-          content: const Text("Are you sure you want to change your password?"),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text("Cancel"),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text("Yes"),
-            ),
-          ],
+    if (currentController.text == newController.text) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("New password cannot be same as current password"),
         ),
       );
+      return;
+    }
 
-      if (confirm != true) return;
-
-      setState(() => isSubmitting = true);
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token') ?? '';
-
-      final response = await http.post(
-        Uri.parse('https://school.edusathi.in/api/password'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        },
-        body: {
-          'current_pass': currentController.text.trim(),
-          'new_pass': newController.text.trim(),
-        },
+    if (newController.text != confirmController.text) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("New password and confirm password do not match"),
+        ),
       );
+      return;
+    }
 
-      setState(() => isSubmitting = false);
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Confirm Change"),
+        content: const Text("Are you sure you want to change your password?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text("Yes"),
+          ),
+        ],
+      ),
+    );
 
-      final data = jsonDecode(response.body);
-      if (data['status'] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Password changed successfully!")),
-        );
-        Navigator.pop(context);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(data['message'] ?? "Password change failed")),
-        );
-      }
+    if (confirm != true) return;
+
+    setState(() => isSubmitting = true);
+
+    final response = await AuthHelper.post(
+      context,
+      'https://school.edusathi.in/api/password',
+      body: {
+        'current_pass': currentController.text.trim(),
+        'new_pass': newController.text.trim(),
+      },
+    );
+
+    setState(() => isSubmitting = false);
+
+    if (response == null) return; // auto-logout already handled
+
+    final data = jsonDecode(response.body);
+
+    if (data['status'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Password changed successfully!")),
+      );
+      Navigator.pop(context);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(data['message'] ?? "Password change failed"),
+        ),
+      );
     }
   }
 
@@ -97,7 +105,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
           'Change Password',
           style: TextStyle(color: Colors.white),
         ),
-        iconTheme: IconThemeData(color: Colors.white),
+        iconTheme: const IconThemeData(color: Colors.white),
         backgroundColor: Colors.deepPurple,
       ),
       body: Padding(
@@ -151,7 +159,8 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                       ? const CircularProgressIndicator(color: Colors.white)
                       : const Text(
                           "Submit",
-                          style: TextStyle(fontSize: 16, color: Colors.white),
+                          style:
+                              TextStyle(fontSize: 16, color: Colors.white),
                         ),
                 ),
               ),

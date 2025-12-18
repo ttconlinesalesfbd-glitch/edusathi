@@ -16,8 +16,9 @@ class _SyllabusPageState extends State<SyllabusPage> {
   final String getSyllabusUrl = 'https://school.edusathi.in/api/syllabus';
 
   List<dynamic> exams = [];
-  dynamic selectedExam;
+  Map<String, dynamic>? selectedExam;
   List<dynamic> syllabusContent = [];
+
   bool isLoadingExams = true;
   bool isLoadingSyllabus = false;
 
@@ -27,15 +28,26 @@ class _SyllabusPageState extends State<SyllabusPage> {
     fetchExams();
   }
 
+  // ---------------- FETCH EXAMS ----------------
   Future<void> fetchExams() async {
-    setState(() {
-      isLoadingExams = true;
-    });
+    if (!mounted) return;
 
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+    setState(() => isLoadingExams = true);
 
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      // 🔐 Token safety
+      if (token == null || token.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          exams = [];
+          isLoadingExams = false;
+        });
+        return;
+      }
+
       final response = await http.post(
         Uri.parse(getExamsUrl),
         headers: {
@@ -45,43 +57,50 @@ class _SyllabusPageState extends State<SyllabusPage> {
         },
       );
 
+      if (!mounted) return;
+
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
+
         setState(() {
-          exams = decoded;
+          exams = decoded is List ? decoded : [];
           isLoadingExams = false;
         });
 
-        if (exams.isNotEmpty) {
-          selectedExam = exams[0];
-          fetchSyllabusForExam(selectedExam['ExamId']);
+        if (exams.isNotEmpty && exams.first['ExamId'] != null) {
+          selectedExam = exams.first;
+          fetchSyllabusForExam(selectedExam!['ExamId'].toString());
         }
       } else {
-        print('Failed to load exams. Status: ${response.statusCode}');
-        print('Response body: ${response.body}');
-        setState(() {
-          isLoadingExams = false;
-        });
+        setState(() => isLoadingExams = false);
         _showSnackBar('Failed to load exams.');
       }
     } catch (e) {
-      print('Error fetching exams: $e');
-      setState(() {
-        isLoadingExams = false;
-      });
-      _showSnackBar('An error occurred: $e');
+      if (!mounted) return;
+      setState(() => isLoadingExams = false);
+      _showSnackBar('Error loading exams');
     }
   }
 
+  // ---------------- FETCH SYLLABUS ----------------
   Future<void> fetchSyllabusForExam(String examId) async {
-    setState(() {
-      isLoadingSyllabus = true;
-    });
+    if (!mounted) return;
 
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+    setState(() => isLoadingSyllabus = true);
 
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      if (token == null || token.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          syllabusContent = [];
+          isLoadingSyllabus = false;
+        });
+        return;
+      }
+
       final response = await http.post(
         Uri.parse(getSyllabusUrl),
         headers: {
@@ -92,10 +111,13 @@ class _SyllabusPageState extends State<SyllabusPage> {
         body: jsonEncode({'ExamId': examId}),
       );
 
+      if (!mounted) return;
+
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
+
         setState(() {
-          syllabusContent = decoded;
+          syllabusContent = decoded is List ? decoded : [];
           isLoadingSyllabus = false;
         });
       } else {
@@ -103,34 +125,32 @@ class _SyllabusPageState extends State<SyllabusPage> {
           syllabusContent = [];
           isLoadingSyllabus = false;
         });
-        _showSnackBar(
-          'Failed to load syllabus. Status: ${response.statusCode}',
-        );
+        _showSnackBar('Failed to load syllabus.');
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         syllabusContent = [];
         isLoadingSyllabus = false;
       });
-      _showSnackBar('An error occurred: $e');
+      _showSnackBar('Error loading syllabus');
     }
   }
 
   void _showSnackBar(String message) {
-    if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
-    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
+  // ---------------- UI (UNCHANGED) ----------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Syllabus", style: TextStyle(color: Colors.white)),
         iconTheme: const IconThemeData(color: Colors.white),
-        elevation: 2,
         backgroundColor: Colors.deepPurple,
       ),
       body: Column(
@@ -164,14 +184,15 @@ class _SyllabusPageState extends State<SyllabusPage> {
         itemBuilder: (context, index) {
           final exam = exams[index];
           final isSelected =
-              selectedExam != null && selectedExam['ExamId'] == exam['ExamId'];
+              selectedExam != null &&
+              selectedExam!['ExamId'] == exam['ExamId'];
 
           return GestureDetector(
             onTap: () {
-              setState(() {
-                selectedExam = exam;
-              });
-              fetchSyllabusForExam(exam['ExamId']);
+              setState(() => selectedExam = exam);
+              if (exam['ExamId'] != null) {
+                fetchSyllabusForExam(exam['ExamId'].toString());
+              }
             },
             child: Container(
               margin: const EdgeInsets.symmetric(horizontal: 6),
@@ -188,12 +209,11 @@ class _SyllabusPageState extends State<SyllabusPage> {
                     const SizedBox(width: 4),
                   ],
                   Text(
-                    exam['Exam']!,
+                    exam['Exam']?.toString() ?? '',
                     style: TextStyle(
                       color: isSelected ? Colors.white : Colors.black,
-                      fontWeight: isSelected
-                          ? FontWeight.bold
-                          : FontWeight.normal,
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.normal,
                     ),
                   ),
                 ],
@@ -225,8 +245,9 @@ class _SyllabusPageState extends State<SyllabusPage> {
         itemCount: syllabusContent.length,
         padding: const EdgeInsets.all(12),
         itemBuilder: (context, index) {
-          final subject = syllabusContent[index]['Subject'];
-          final content = syllabusContent[index]['Content'] ?? ''; 
+          final item = syllabusContent[index];
+          final subject = item['Subject']?.toString() ?? '';
+          final content = item['Content']?.toString() ?? '';
 
           return Card(
             elevation: 2,
@@ -235,12 +256,12 @@ class _SyllabusPageState extends State<SyllabusPage> {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    subject!,
+                    subject,
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -249,10 +270,10 @@ class _SyllabusPageState extends State<SyllabusPage> {
                   ),
                   const SizedBox(height: 8),
                   Html(
-                    data: content.toString(), 
+                    data: content,
                     style: {
                       "body": Style(
-                        fontSize: FontSize(14.0),
+                        fontSize: FontSize(14),
                         lineHeight: LineHeight.em(1.5),
                       ),
                     },

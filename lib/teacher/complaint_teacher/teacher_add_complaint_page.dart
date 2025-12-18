@@ -13,10 +13,13 @@ class TeacherAddComplaintPage extends StatefulWidget {
 
 class _TeacherAddComplaintPageState extends State<TeacherAddComplaintPage> {
   final _formKey = GlobalKey<FormState>();
+
   List<dynamic> students = [];
   int? selectedStudentId;
-  TextEditingController descriptionController = TextEditingController();
+  final TextEditingController descriptionController = TextEditingController();
+
   bool isSubmitting = false;
+  bool isLoadingStudents = true;
 
   @override
   void initState() {
@@ -24,77 +27,118 @@ class _TeacherAddComplaintPageState extends State<TeacherAddComplaintPage> {
     fetchStudents();
   }
 
+  @override
+  void dispose() {
+    descriptionController.dispose();
+    super.dispose();
+  }
+
+  // ---------------- FETCH STUDENTS ----------------
   Future<void> fetchStudents() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token') ?? '';
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
 
-    final response = await http.post(
-      Uri.parse('https://school.edusathi.in/api/get_student'),
-      headers: {'Authorization': 'Bearer $token', 'Accept': 'application/json'},
-    );
+      if (token == null || token.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          students = [];
+          isLoadingStudents = false;
+        });
+        return;
+      }
 
-    if (response.statusCode == 200) {
+      final response = await http.post(
+        Uri.parse('https://school.edusathi.in/api/get_student'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        setState(() {
+          students = decoded is List ? decoded : [];
+          isLoadingStudents = false;
+        });
+      } else {
+        setState(() => isLoadingStudents = false);
+        _showSnackBar("Failed to load students");
+      }
+    } catch (e) {
+      if (!mounted) return;
       setState(() {
-        students = jsonDecode(response.body);
+        students = [];
+        isLoadingStudents = false;
       });
-    } else {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Failed to load students")));
+      _showSnackBar("Error loading students");
     }
   }
 
+  // ---------------- SUBMIT COMPLAINT ----------------
   Future<void> submitComplaint() async {
     if (!_formKey.currentState!.validate()) return;
 
     if (selectedStudentId == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Please select a student")));
+      _showSnackBar("Please select a student");
       return;
     }
 
     setState(() => isSubmitting = true);
-    print(
-      '📤 Submitting: StudentId=$selectedStudentId, Description=${descriptionController.text}',
-    );
 
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token') ?? '';
-    print("📌 Sending student_id: $selectedStudentId");
-    print("📌 Sending description: ${descriptionController.text.trim()}");
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
 
-    final response = await http.post(
-      Uri.parse('https://school.edusathi.in/api/teacher/complaint/store'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Accept': 'application/json',
-      
-      },
-      body: {
-        'StudentId': selectedStudentId.toString(),
-        'Description': descriptionController.text.trim(),
-      },
-    );
+      if (token == null || token.isEmpty) {
+        if (!mounted) return;
+        setState(() => isSubmitting = false);
+        _showSnackBar("Session expired. Please login again.");
+        return;
+      }
 
-    print("🔴 Status code: ${response.statusCode}");
-    print("🔴 Response body: ${response.body}");
-
-    setState(() => isSubmitting = false);
-
-    final decoded = jsonDecode(response.body);
-    if (decoded['status'] == true) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(decoded['message'] ?? "Complaint submitted")),
+      final response = await http.post(
+        Uri.parse('https://school.edusathi.in/api/teacher/complaint/store'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+        body: {
+          'StudentId': selectedStudentId.toString(),
+          'Description': descriptionController.text.trim(),
+        },
       );
-      Navigator.pop(context, true); // After adding complaint successfully
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(decoded['message'] ?? "Submission failed")),
-      );
+
+      if (!mounted) return;
+
+      final decoded = jsonDecode(response.body);
+
+      setState(() => isSubmitting = false);
+
+      if (response.statusCode == 200 && decoded['status'] == true) {
+        _showSnackBar(decoded['message'] ?? "Complaint submitted");
+        Navigator.pop(context, true);
+      } else {
+        _showSnackBar(decoded['message'] ?? "Submission failed");
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => isSubmitting = false);
+      _showSnackBar("Something went wrong");
     }
   }
 
+  void _showSnackBar(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg)),
+    );
+  }
+
+  // ---------------- UI (UNCHANGED) ----------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -138,9 +182,7 @@ class _TeacherAddComplaintPageState extends State<TeacherAddComplaintPage> {
                   );
                 }).toList(),
                 onChanged: (value) {
-                  setState(() {
-                    selectedStudentId = value;
-                  });
+                  setState(() => selectedStudentId = value);
                 },
               ),
               const SizedBox(height: 16),

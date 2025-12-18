@@ -4,6 +4,7 @@ import 'package:student_app/dashboard/dashboard_screen.dart';
 import 'package:student_app/login_page.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:student_app/notification/notification_service.dart';
+import 'package:student_app/teacher/teacher_dashboard_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -16,38 +17,45 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    initializeNotifications();
-    checkLoginStatus();
+    _initializeNotifications();
+    _checkLoginStatus();
   }
 
-  void initializeNotifications() async {
-    // 🔔 Local notification setup
-    NotificationService.initialize(context);
-
-    // 🔔 Foreground notification handler
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      print("📲 [Foreground] ${message.notification?.title}");
-      NotificationService.display(message);
-    });
-
-    // 🔒 Permission request (needed for Android 13+)
+  Future<void> _initializeNotifications() async {
+    // 🔔 Request permission FIRST (important for iOS)
     await FirebaseMessaging.instance.requestPermission(
       alert: true,
       badge: true,
       sound: true,
     );
+
+    // 🔔 Initialize local notifications
+    NotificationService.initialize(context);
+
+    // 🔔 Foreground message handler
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      debugPrint("📲 Foreground notification: ${message.notification?.title}");
+      NotificationService.display(message);
+    });
   }
 
-  Future<void> checkLoginStatus() async {
-    await Future.delayed(const Duration(seconds: 2)); // Splash delay
+  Future<void> _checkLoginStatus() async {
+    await Future.delayed(const Duration(seconds: 2));
+
+    if (!mounted) return;
 
     final prefs = await SharedPreferences.getInstance();
     final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+    final userType = prefs.getString('user_type') ?? '';
 
     if (isLoggedIn) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const DashboardScreen()),
+        MaterialPageRoute(
+          builder: (_) => userType == 'Teacher'
+              ? const TeacherDashboardScreen()
+              : const DashboardScreen(),
+        ),
       );
     } else {
       Navigator.pushReplacement(

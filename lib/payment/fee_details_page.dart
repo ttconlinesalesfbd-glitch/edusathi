@@ -52,11 +52,24 @@ class _FeeDetailsPageState extends State<FeeDetailsPage> {
     fetchFeeData(monthApiKeys[selectedMonthIndex]);
   }
 
-  Future<void> fetchFeeData(String monthKey) async {
-    setState(() => isLoading = true);
+ Future<void> fetchFeeData(String monthKey) async {
+  if (!mounted) return;
 
+  setState(() => isLoading = true);
+
+  try {
     final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token') ?? '';
+    final token = prefs.getString('token');
+
+    if (token == null || token.isEmpty) {
+      if (mounted) {
+        setState(() {
+          feeData = [];
+          isLoading = false;
+        });
+      }
+      return;
+    }
 
     final response = await http.post(
       Uri.parse(apiUrl),
@@ -68,11 +81,13 @@ class _FeeDetailsPageState extends State<FeeDetailsPage> {
       body: jsonEncode({'Month': monthKey}),
     );
 
-    print("📥 Fee API Response (${monthKey}): ${response.body}");
+    if (!mounted) return;
 
     if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+
       setState(() {
-        feeData = jsonDecode(response.body);
+        feeData = decoded is List ? decoded : [];
         isLoading = false;
       });
     } else {
@@ -80,11 +95,24 @@ class _FeeDetailsPageState extends State<FeeDetailsPage> {
         feeData = [];
         isLoading = false;
       });
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Failed to fetch fee details")),
       );
     }
+  } catch (e) {
+    if (!mounted) return;
+
+    setState(() {
+      feeData = [];
+      isLoading = false;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Network error: $e")),
+    );
   }
+}
 
   @override
   Widget build(BuildContext context) {

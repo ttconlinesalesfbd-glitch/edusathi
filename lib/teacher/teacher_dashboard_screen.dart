@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+
 import 'package:student_app/login_page.dart';
 import 'package:student_app/payment/payment_teacher_screen.dart';
 import 'package:student_app/teacher/complaint_teacher/teacher_complaint_list_page.dart';
@@ -15,14 +16,17 @@ class TeacherDashboardScreen extends StatefulWidget {
   const TeacherDashboardScreen({super.key});
 
   @override
-  State<TeacherDashboardScreen> createState() => _TeacherDashboardScreenState();
+  State<TeacherDashboardScreen> createState() =>
+      _TeacherDashboardScreenState();
 }
 
 class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   bool isLoading = true;
+
   int students = 0;
   int complaints = 0;
   int payments = 0;
+
   String schoolName = '';
   String teacherPhoto = '';
 
@@ -30,98 +34,111 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   List<Map<String, dynamic>> homeworks = [];
 
   @override
-  @override
   void initState() {
     super.initState();
-    loadTeacherInfo();
-    fetchDashboardData().then((_) {
-      fetchTeacherHomeworks(); // Add this
-    });
+    _initDashboard();
   }
 
+  // ---------------- INIT ----------------
+  Future<void> _initDashboard() async {
+    await loadTeacherInfo();
+    await fetchDashboardData();
+    await fetchTeacherHomeworks();
+  }
+
+  // ---------------- TEACHER INFO ----------------
   Future<void> loadTeacherInfo() async {
     final prefs = await SharedPreferences.getInstance();
+
+    if (!mounted) return;
+
     setState(() {
       schoolName = prefs.getString('school_name') ?? '';
       teacherPhoto = prefs.getString('teacher_photo') ?? '';
     });
   }
 
-  Future<void> fetchTeacherHomeworks() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token') ?? '';
-
-    final response = await http.post(
-      Uri.parse('https://school.edusathi.in/api/teacher/homework'),
-      headers: {'Authorization': 'Bearer $token', 'Accept': 'application/json'},
-    );
-    print("🪪 Token being used: $token");
-
-    if (response.statusCode == 200) {
-      final List<dynamic> data = jsonDecode(response.body);
-
-      // 🔍 Add these for debugging:
-      print("📥 API raw response: ${response.body}");
-      print("✅ Parsed data: $data");
-
-      setState(() {
-        homeworks = List<Map<String, dynamic>>.from(data);
-
-        // 🔍 Log what's being saved
-        print("📝 Homework list set in state: $homeworks");
-      });
-    } else {
-      print('❌ Teacher Homework API failed: ${response.statusCode}');
-    }
-  }
-
+  // ---------------- DASHBOARD DATA ----------------
   Future<void> fetchDashboardData() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token') ?? '';
 
-    final response = await http.post(
-      Uri.parse('https://school.edusathi.in/api/teacher/dashboard'),
-      headers: {'Authorization': 'Bearer $token', 'Accept': 'application/json'},
-    );
-    print("🔍 Raw Response Body:");
-
-    print(response.body);
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      print("📦 Decoded Data:");
-      print(data);
-
-      setState(() {
-        students = data['students'] ?? 0;
-        complaints = data['complaints'] ?? 0;
-        payments = int.tryParse(data['payments'].toString()) ?? 0;
-        attendance = {
-          'present': data['attendances']?['present'] ?? 0,
-          'absent': data['attendances']?['absent'] ?? 0,
-          'leave': data['attendances']?['leave'] ?? 0,
-          'half_day': data['attendances']?['half_day'] ?? 0,
-          'working_days': data['attendances']?['working_days'] ?? 0,
-        };
-        isLoading = false;
-      });
-    } else {
-      setState(() => isLoading = false);
-       if (response.statusCode == 401) {
-    
-      await prefs.clear();
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => LoginPage()),
-        (route) => false,
+    try {
+      final response = await http.post(
+        Uri.parse('https://school.edusathi.in/api/teacher/dashboard'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
       );
 
-      return;
-    }
-      print('Dashboard API error: ${response.statusCode}');
+      if (!mounted) return;
+
+      if (response.statusCode == 401) {
+        await prefs.clear();
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => LoginPage()),
+          (_) => false,
+        );
+        return;
+      }
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        setState(() {
+          students = data['students'] ?? 0;
+          complaints = data['complaints'] ?? 0;
+          payments = int.tryParse(data['payments'].toString()) ?? 0;
+          attendance = {
+            'present': data['attendances']?['present'] ?? 0,
+            'absent': data['attendances']?['absent'] ?? 0,
+            'leave': data['attendances']?['leave'] ?? 0,
+            'half_day': data['attendances']?['half_day'] ?? 0,
+            'working_days': data['attendances']?['working_days'] ?? 0,
+          };
+        });
+      }
+    } catch (_) {
+      // silent fail – dashboard should not crash
+    } finally {
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
     }
   }
 
+  // ---------------- HOMEWORK ----------------
+  Future<void> fetchTeacherHomeworks() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token') ?? '';
+
+    try {
+      final response = await http.post(
+        Uri.parse('https://school.edusathi.in/api/teacher/homework'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is List) {
+          setState(() {
+            homeworks = List<Map<String, dynamic>>.from(decoded);
+          });
+        }
+      }
+    } catch (_) {
+      // keep dashboard stable
+    }
+  }
+
+  // ---------------- UI ----------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -131,12 +148,16 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         backgroundColor: Colors.deepPurple,
         titleSpacing: 0,
         title: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Expanded(
               child: Text(
-                schoolName.isNotEmpty ? schoolName : 'Teacher Dashboard',
-                style: const TextStyle(color: Colors.white, fontSize: 15),
+                schoolName.isNotEmpty
+                    ? schoolName
+                    : 'Teacher Dashboard',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -147,7 +168,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                     radius: 15,
                   )
                 : const CircleAvatar(
-                    backgroundImage: AssetImage('assets/images/logo_new.png'),
+                    backgroundImage:
+                        AssetImage('assets/images/logo_new.png'),
                     radius: 15,
                   ),
             const SizedBox(width: 15),
@@ -162,77 +184,72 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    mainAxisAlignment:
+                        MainAxisAlignment.spaceEvenly,
                     children: [
                       GestureDetector(
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => StudentListPage(),
+                          ),
+                        ),
                         child: DashboardCard(
                           title: 'Students',
                           value: students.toString(),
                           borderColor: Colors.blue,
-                          backgroundColor: const Color(0xFFE3F2FD),
+                          backgroundColor:
+                              const Color(0xFFE3F2FD),
                           textColor: Colors.blue,
-                        ),
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => StudentListPage()),
                         ),
                       ),
                       GestureDetector(
-                        child: DashboardCard(
-                          title: 'Payments',
-                          value: '$payments',
-                          borderColor: Colors.green,
-                          backgroundColor: const Color(0xFFE8F5E9),
-                          textColor: Colors.green,
-                        ),
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => PaymentTeacherScreen(),
+                            builder: (_) =>
+                                PaymentTeacherScreen(),
                           ),
+                        ),
+                        child: DashboardCard(
+                          title: 'Payments',
+                          value: payments.toString(),
+                          borderColor: Colors.green,
+                          backgroundColor:
+                              const Color(0xFFE8F5E9),
+                          textColor: Colors.green,
                         ),
                       ),
                       GestureDetector(
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                TeacherComplaintListPage(),
+                          ),
+                        ),
                         child: DashboardCard(
                           title: 'Complaints',
                           value: complaints.toString(),
                           borderColor: Colors.red,
-                          backgroundColor: const Color(0xFFFFEBEE),
+                          backgroundColor:
+                              const Color(0xFFFFEBEE),
                           textColor: Colors.red,
-                        ),
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => TeacherComplaintListPage(),
-                          ),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 30),
-                  Container(
-                    height: 230,
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.deepPurple.shade100),
-                      boxShadow: [
-                        BoxShadow(color: Colors.grey.shade200, blurRadius: 6),
-                      ],
-                    ),
-                    child: AttendancePieChart(
-                      present: attendance['present'] ?? 0,
-                      absent: attendance['absent'] ?? 0,
-                      leave: attendance['leave'] ?? 0,
-                      halfDay: attendance['half_day'] ?? 0,
-                      workingDays: attendance['working_days'] ?? 0,
-                    ),
+                  AttendancePieChart(
+                    present: attendance['present'] ?? 0,
+                    absent: attendance['absent'] ?? 0,
+                    leave: attendance['leave'] ?? 0,
+                    halfDay: attendance['half_day'] ?? 0,
+                    workingDays:
+                        attendance['working_days'] ?? 0,
                   ),
                   const SizedBox(height: 20),
                   TeacherRecentHomeworks(homeworks: homeworks),
-
-                  const SizedBox(height: 20),
                 ],
               ),
             ),

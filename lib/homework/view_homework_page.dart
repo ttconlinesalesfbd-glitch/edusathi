@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:open_file/open_file.dart';
 
 class ViewHomeworksPage extends StatelessWidget {
@@ -15,7 +14,10 @@ class ViewHomeworksPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Assigned Homeworks", style: TextStyle(color: Colors.white)),
+        title: const Text(
+          "Assigned Homeworks",
+          style: TextStyle(color: Colors.white),
+        ),
         backgroundColor: Colors.deepPurple,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
@@ -24,6 +26,7 @@ class ViewHomeworksPage extends StatelessWidget {
         itemCount: homeworks.length,
         itemBuilder: (context, index) {
           final hw = homeworks[index];
+
           return Card(
             elevation: 3,
             margin: const EdgeInsets.symmetric(vertical: 8),
@@ -42,16 +45,16 @@ class ViewHomeworksPage extends StatelessWidget {
               ),
               trailing: hw['Attachment'] != null
                   ? IconButton(
-                      icon: const Icon(Icons.download, color: Colors.deepPurple),
+                      icon: const Icon(
+                        Icons.download,
+                        color: Colors.deepPurple,
+                      ),
                       onPressed: () {
                         String fileUrl = hw['Attachment'];
-                        String fileName = fileUrl.split('/').last;
-
                         if (!fileUrl.startsWith('http')) {
                           fileUrl = 'https://school.edusathi.in/$fileUrl';
                         }
-
-                        downloadFile(context, fileUrl, fileName);
+                        downloadFile(context, fileUrl);
                       },
                     )
                   : null,
@@ -72,32 +75,31 @@ class ViewHomeworksPage extends StatelessWidget {
     }
   }
 
-  Future<void> downloadFile(BuildContext context, String fileUrl, String fileName) async {
-    if (Platform.isAndroid) {
-      var status = await Permission.manageExternalStorage.request();
-      if (!status.isGranted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Storage permission is required")),
-        );
-        return;
-      }
-    }
-
+  // ============================
+  // 📥 SAFE DOWNLOAD (iOS + ANDROID)
+  // ============================
+  Future<void> downloadFile(
+    BuildContext context,
+    String fileUrl,
+  ) async {
     try {
       final response = await http.get(Uri.parse(fileUrl));
-      if (response.statusCode == 200) {
-        final dir = await getExternalStorageDirectory();
-        final file = File('${dir!.path}/$fileName');
-        await file.writeAsBytes(response.bodyBytes);
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Downloaded to ${file.path}")),
-        );
-
-        await OpenFile.open(file.path);
-      } else {
-        throw Exception('Download failed with status ${response.statusCode}');
+      if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
+        throw Exception("Failed to download file");
       }
+
+      // ✅ App-specific directory (NO permission needed)
+      final dir = await getApplicationDocumentsDirectory();
+      final fileName = fileUrl.split('/').last;
+      final file = File('${dir.path}/$fileName');
+
+      await file.writeAsBytes(response.bodyBytes, flush: true);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Downloaded to ${file.path}")),
+      );
+
+      await OpenFile.open(file.path);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Download error: $e")),

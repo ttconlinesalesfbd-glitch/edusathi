@@ -31,32 +31,61 @@ class _TeacherComplaintPageState extends State<TeacherComplaintPage> {
     fetchComplaintHistory();
   }
 
+  // ---------------- FETCH HISTORY ----------------
   Future<void> fetchComplaintHistory() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token') ?? '';
+    try {
+      if (mounted) setState(() => isLoading = true);
 
-    final response = await http.post(
-      Uri.parse('https://school.edusathi.in/api/teacher/complaint/history'),
-      headers: {
-        'Authorization': 'Bearer $token',
-      },
-      body: {
-        'ComplaintId': widget.complaintId.toString(),
-      },
-    );
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
 
-    if (response.statusCode == 200) {
+      if (token == null || token.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          complaintHistory = [];
+          isLoading = false;
+        });
+        return;
+      }
+
+      final response = await http.post(
+        Uri.parse(
+          'https://school.edusathi.in/api/teacher/complaint/history',
+        ),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'ComplaintId': widget.complaintId,
+        }),
+      );
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200 && response.body.isNotEmpty) {
+        final decoded = jsonDecode(response.body);
+        setState(() {
+          complaintHistory = decoded is List ? decoded : [];
+          isLoading = false;
+        });
+      } else {
+        setState(() {
+          complaintHistory = [];
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
       setState(() {
-        complaintHistory = json.decode(response.body);
-        isLoading = false;
-      });
-    } else {
-      setState(() {
+        complaintHistory = [];
         isLoading = false;
       });
     }
   }
 
+  // ---------------- STATUS BADGE ----------------
   Widget getStatusBadge(int status) {
     String text;
     Color color;
@@ -89,6 +118,7 @@ class _TeacherComplaintPageState extends State<TeacherComplaintPage> {
     );
   }
 
+  // ---------------- UI ----------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -119,7 +149,7 @@ class _TeacherComplaintPageState extends State<TeacherComplaintPage> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          widget.description,
+                          widget.description.replaceAll(r'\r\n', '\n'),
                           style: const TextStyle(fontSize: 16),
                         ),
                         const SizedBox(height: 8),
@@ -138,28 +168,39 @@ class _TeacherComplaintPageState extends State<TeacherComplaintPage> {
                   ),
                   const SizedBox(height: 12),
 
-                  ...complaintHistory.map((entry) {
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "📅 ${entry['Date'] ?? ''}",
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.deepPurple,
+                  if (complaintHistory.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(child: Text("No history available")),
+                    )
+                  else
+                    ...complaintHistory.map((entry) {
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "📅 ${entry['Date'] ?? ''}",
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.deepPurple,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(entry['Description'] ?? ''),
-                          ],
+                              const SizedBox(height: 4),
+                              Text(
+                                entry['Description']
+                                        ?.replaceAll(
+                                            r'\r\n', '\n') ??
+                                    '',
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    );
-                  }).toList(),
+                      );
+                    }).toList(),
                 ],
               ),
             ),

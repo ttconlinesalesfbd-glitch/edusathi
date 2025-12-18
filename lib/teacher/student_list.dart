@@ -21,24 +21,31 @@ class _StudentListPageState extends State<StudentListPage> {
     _loadTokenAndFetch();
   }
 
+  // ---------------- LOAD TOKEN ----------------
   Future<void> _loadTokenAndFetch() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    String? token = prefs.getString('token');
-    setState(() => _token = token);
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
 
-    if (token != null) {
-      fetchStudents(token);
-    } else {
+    if (!mounted) return;
+
+    if (token == null || token.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No token found. Please log in again.')),
       );
+      return;
     }
+
+    _token = token;
+    fetchStudents(token);
   }
 
+  // ---------------- FETCH STUDENTS ----------------
   Future<void> fetchStudents(String token) async {
+    if (!mounted) return;
+
     setState(() => _isLoading = true);
 
-    const String apiUrl = 'https://school.edusathi.in/api/teacher/student/list';
+    const apiUrl = 'https://school.edusathi.in/api/teacher/student/list';
 
     try {
       final response = await http.post(
@@ -49,34 +56,55 @@ class _StudentListPageState extends State<StudentListPage> {
         },
       );
 
+      if (!mounted) return;
+
       if (response.statusCode == 200) {
-        setState(() {
-          _students = json.decode(response.body);
-        });
+        final decoded = jsonDecode(response.body);
+
+        if (decoded is List) {
+          setState(() => _students = decoded);
+        } else {
+          _students = [];
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Invalid student data received')),
+          );
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load students (${response.statusCode})')),
+          SnackBar(
+            content: Text(
+              'Failed to load students (${response.statusCode})',
+            ),
+          ),
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
+  // ---------------- DATE FORMAT ----------------
   String formatDate(String? dob) {
     if (dob == null || dob.isEmpty) return 'N/A';
     try {
-      DateTime date = DateTime.parse(dob);
-      return "${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year}";
+      final date = DateTime.parse(dob);
+      return "${date.day.toString().padLeft(2, '0')}-"
+          "${date.month.toString().padLeft(2, '0')}-"
+          "${date.year}";
     } catch (_) {
       return 'Invalid';
     }
   }
 
+  // ---------------- UI ----------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -91,7 +119,9 @@ class _StudentListPageState extends State<StudentListPage> {
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
             onPressed: () {
-              if (_token != null) fetchStudents(_token!);
+              if (_token != null) {
+                fetchStudents(_token!);
+              }
             },
           ),
         ],
@@ -112,6 +142,7 @@ class _StudentListPageState extends State<StudentListPage> {
                   itemCount: _students.length,
                   itemBuilder: (context, index) {
                     final student = _students[index];
+
                     return Card(
                       elevation: 3,
                       margin: const EdgeInsets.symmetric(vertical: 6),
@@ -119,7 +150,7 @@ class _StudentListPageState extends State<StudentListPage> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Padding(
-                        padding: const EdgeInsets.all(12.0),
+                        padding: const EdgeInsets.all(12),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [

@@ -2,11 +2,11 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+
 import 'package:student_app/complaint/complaint_detail_page.dart';
 import 'package:student_app/dashboard/dashboard_screen.dart';
 import 'package:student_app/Attendance_UI/stu_attendance_page.dart';
 import 'package:student_app/homework/homework_detail_page.dart';
-
 
 class NotificationListPage extends StatefulWidget {
   const NotificationListPage({super.key});
@@ -28,92 +28,88 @@ class _NotificationListPageState extends State<NotificationListPage> {
   Future<void> fetchNotifications() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token') ?? '';
+      final token = prefs.getString('token');
 
-      final url = Uri.parse(
-        "https://school.edusathi.in/api/student/notifications",
+      if (token == null || token.isEmpty) {
+        if (!mounted) return;
+        setState(() => isLoading = false);
+        return;
+      }
+
+      final response = await http.post(
+        Uri.parse("https://school.edusathi.in/api/student/notifications"),
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
       );
-      final headers = {
-        'Accept': 'application/json',
-        'Authorization': 'Bearer $token',
-      };
 
-      print("🔑 Token: $token");
-
-      final response = await http.post(url, headers: headers);
-      print("📥 Status: ${response.statusCode}");
-      print("📥 Body: ${response.body}");
+      if (!mounted) return;
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['status'] == true && data['data'] != null) {
-          setState(() {
-            notifications = data['data'];
-            isLoading = false;
-          });
-        } else {
-          setState(() {
-            isLoading = false;
-          });
-        }
-      } else {
+        final decoded = jsonDecode(response.body);
         setState(() {
+          notifications = decoded['data'] ?? [];
           isLoading = false;
         });
+      } else {
+        setState(() => isLoading = false);
       }
     } catch (e) {
-      print("🚨 Error fetching notifications: $e");
-      setState(() {
-        isLoading = false;
-      });
+      if (!mounted) return;
+      setState(() => isLoading = false);
     }
   }
 
-  void handleNotificationTap(String type, int id, Map<String, dynamic> item) {
-    if (type == "homework") {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => HomeworkDetailPage(homework: item)),
-      );
-    } else if (type == "attendance") {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => AttendanceAnalyticsPage()),
-      );
-    } else if (type == "complaint") {
-      final complaintId = id;
-      final date =
-          notifications.firstWhere((item) => item["id"] == id)["date"] ?? "";
-      final description =
-          notifications.firstWhere((item) => item["id"] == id)["description"] ??
-          "";
-      final status =
-          notifications.firstWhere((item) => item["id"] == id)["status"] ?? "";
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ComplaintDetailPage(
-            complaintId: complaintId,
-            date: date,
-            description: description,
-            status: status,
+  void handleNotificationTap(Map<String, dynamic> item) {
+    final type = item['type'] ?? '';
+    final id = item['id'];
+
+    switch (type) {
+      case 'homework':
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => HomeworkDetailPage(homework: item),
           ),
-        ),
-      );
-    } else if ([
-      "notice",
-      "event",
-      "student alert",
-      "due reminder",
-    ].contains(type)) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => DashboardScreen()),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("No screen mapped for type: $type")),
-      );
+        );
+        break;
+
+      case 'attendance':
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => AttendanceAnalyticsPage()),
+        );
+        break;
+
+      case 'complaint':
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ComplaintDetailPage(
+              complaintId: id,
+              date: item['date'] ?? '',
+              description: item['description'] ?? '',
+              status: item['status'] ?? 0,
+            ),
+          ),
+        );
+        break;
+
+      case 'notice':
+      case 'event':
+      case 'student alert':
+      case 'due reminder':
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => DashboardScreen()),
+        );
+        break;
+
+      default:
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("No screen mapped for type: $type")),
+        );
     }
   }
 
@@ -133,133 +129,119 @@ class _NotificationListPageState extends State<NotificationListPage> {
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : notifications.isEmpty
-          ? const Center(child: Text("No notifications available"))
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: notifications.length,
-              itemBuilder: (context, index) {
-                final item = notifications[index];
-                final type = item["type"] ?? "";
-                final id = item["id"];
-                final date = item["date"] ?? "";
-                final time = item["time"] ?? "";
+              ? const Center(child: Text("No notifications available"))
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: notifications.length,
+                  itemBuilder: (context, index) {
+                    final item = notifications[index];
+                    final type = item['type'] ?? '';
 
-                final title = type == "homework"
-                    ? item["HomeworkTitle"] ?? item["title"] ?? "Homework Title"
-                    : item["title"] ?? "No Title";
+                    final title = type == "homework"
+                        ? item['HomeworkTitle'] ?? item['title'] ?? "Homework"
+                        : item['title'] ?? "Notification";
 
-                final description = type == "homework"
-                    ? item["Remark"] ?? item["description"] ?? ""
-                    : item["description"] ?? "";
+                    final description = type == "homework"
+                        ? item['Remark'] ?? item['description'] ?? ''
+                        : item['description'] ?? '';
 
-                return GestureDetector(
-                  onTap: () => handleNotificationTap(type, id, item),
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black12.withOpacity(0.05),
-                          blurRadius: 5,
-                          offset: const Offset(0, 2),
+                    return GestureDetector(
+                      onTap: () => handleNotificationTap(item),
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black12.withOpacity(0.05),
+                              blurRadius: 5,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Icon section
-                        CircleAvatar(
-                          radius: 22,
-                          backgroundColor: type == "homework"
-                              ? Colors.pink.shade50
-                              : type == "attendance"
-                              ? Colors.blue.shade50
-                              : Colors.orange.shade50,
-                          child: Icon(
-                            type == "homework"
-                                ? Icons.menu_book_rounded
-                                : type == "attendance"
-                                ? Icons.check_circle_outline
-                                : Icons.notifications_active_outlined,
-                            color: type == "homework"
-                                ? Colors.pink
-                                : type == "attendance"
-                                ? Colors.blue
-                                : Colors.orange,
-                            size: 24,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-
-                        // Text section
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                title,
-                                style: const TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.black87,
-                                ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            CircleAvatar(
+                              radius: 22,
+                              backgroundColor: type == "homework"
+                                  ? Colors.pink.shade50
+                                  : type == "attendance"
+                                      ? Colors.blue.shade50
+                                      : Colors.orange.shade50,
+                              child: Icon(
+                                type == "homework"
+                                    ? Icons.menu_book_rounded
+                                    : type == "attendance"
+                                        ? Icons.check_circle_outline
+                                        : Icons.notifications_active_outlined,
+                                color: type == "homework"
+                                    ? Colors.pink
+                                    : type == "attendance"
+                                        ? Colors.blue
+                                        : Colors.orange,
+                                size: 24,
                               ),
-                              const SizedBox(height: 6),
-                              Text(
-                                description,
-                                maxLines: 4,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.black54,
-                                  height: 1.3,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Icon(
-                                    Icons.calendar_today,
-                                    size: 14,
-                                    color: Colors.grey.shade600,
-                                  ),
-                                  const SizedBox(width: 4),
                                   Text(
-                                    date,
+                                    title,
                                     style: const TextStyle(
-                                      fontSize: 13,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    description,
+                                    maxLines: 3,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 14,
                                       color: Colors.black54,
                                     ),
                                   ),
-                                  const SizedBox(width: 10),
-                                  Icon(
-                                    Icons.access_time,
-                                    size: 14,
-                                    color: Colors.grey.shade600,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    time,
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.black54,
-                                    ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.calendar_today,
+                                        size: 14,
+                                        color: Colors.grey,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        item['date'] ?? '',
+                                        style: const TextStyle(fontSize: 13),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      const Icon(
+                                        Icons.access_time,
+                                        size: 14,
+                                        color: Colors.grey,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        item['time'] ?? '',
+                                        style: const TextStyle(fontSize: 13),
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
+                      ),
+                    );
+                  },
+                ),
     );
   }
 }

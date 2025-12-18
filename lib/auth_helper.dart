@@ -6,8 +6,7 @@ import 'package:http/http.dart' as http;
 import '../login_page.dart';
 
 class AuthHelper {
-  static final FlutterSecureStorage _secureStorage =
-      const FlutterSecureStorage(
+  static final FlutterSecureStorage _secureStorage = const FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
     iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
   );
@@ -30,6 +29,31 @@ class AuthHelper {
 
     debugPrint("❌ NO TOKEN FOUND");
     return '';
+  }
+
+  /// 🌐 Auth GET (auto 401 handle)
+  static Future<http.Response?> get(BuildContext context, String url) async {
+    final token = await getToken();
+
+    if (token.isEmpty) {
+      await forceLogout(context);
+      return null;
+    }
+
+    final response = await http.get(
+      Uri.parse(url),
+      headers: {'Authorization': 'Bearer $token', 'Accept': 'application/json'},
+    );
+
+    debugPrint("🌐 API GET $url → ${response.statusCode}");
+
+    if (response.statusCode == 401) {
+      debugPrint("🚫 401 → AUTO LOGOUT");
+      await forceLogout(context);
+      return null;
+    }
+
+    return response;
   }
 
   /// 🚫 Logout everywhere (safe)
