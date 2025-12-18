@@ -1,8 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_html/flutter_html.dart';
+import 'package:student_app/auth_helper.dart';
 
 class SyllabusPage extends StatefulWidget {
   const SyllabusPage({super.key});
@@ -35,92 +34,80 @@ class _SyllabusPageState extends State<SyllabusPage> {
     setState(() => isLoadingExams = true);
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token');
-
-      // 🔐 Token safety
-      if (token == null || token.isEmpty) {
-        if (!mounted) return;
-        setState(() {
-          exams = [];
-          isLoadingExams = false;
-        });
-        return;
-      }
-
-      final response = await http.post(
-        Uri.parse(getExamsUrl),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
+      final response = await AuthHelper.post(
+        context,
+        'https://school.edusathi.in/api/get_exam',
       );
 
-      if (!mounted) return;
+      // 🔐 token expired → auto logout already handled
+      if (response == null) return;
+
+      debugPrint("📦 RAW EXAM BODY: ${response.body}");
 
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
 
+        // ✅ API RETURNS PURE LIST
+        final List<dynamic> examList = decoded is List ? decoded : [];
+
+        if (!mounted) return;
+
         setState(() {
-          exams = decoded is List ? decoded : [];
+          exams = examList;
           isLoadingExams = false;
         });
 
+        debugPrint("📦 Exams length: ${exams.length}");
+        debugPrint("📦 Exams data: $exams");
+
+        // ✅ AUTO LOAD FIRST EXAM SYLLABUS
         if (exams.isNotEmpty && exams.first['ExamId'] != null) {
           selectedExam = exams.first;
           fetchSyllabusForExam(selectedExam!['ExamId'].toString());
         }
       } else {
-        setState(() => isLoadingExams = false);
-        _showSnackBar('Failed to load exams.');
+        _failExamLoad("Failed to load exams");
       }
     } catch (e) {
-      if (!mounted) return;
-      setState(() => isLoadingExams = false);
-      _showSnackBar('Error loading exams');
+      debugPrint("❌ fetchExams exception: $e");
+      _failExamLoad("Error loading exams");
     }
+  }
+
+  void _failExamLoad(String msg) {
+    if (!mounted) return;
+    setState(() => isLoadingExams = false);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   // ---------------- FETCH SYLLABUS ----------------
   Future<void> fetchSyllabusForExam(String examId) async {
     if (!mounted) return;
-
     setState(() => isLoadingSyllabus = true);
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token');
-
-      if (token == null || token.isEmpty) {
-        if (!mounted) return;
-        setState(() {
-          syllabusContent = [];
-          isLoadingSyllabus = false;
-        });
-        return;
-      }
-
-      final response = await http.post(
-        Uri.parse(getSyllabusUrl),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({'ExamId': examId}),
+      final response = await AuthHelper.post(
+        context,
+        getSyllabusUrl,
+        body: {'ExamId': examId},
       );
 
-      if (!mounted) return;
+      if (response == null) {
+        if (!mounted) return;
+        setState(() => isLoadingSyllabus = false);
+        return;
+      }
 
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
 
+        if (!mounted) return;
         setState(() {
           syllabusContent = decoded is List ? decoded : [];
           isLoadingSyllabus = false;
         });
       } else {
+        if (!mounted) return;
         setState(() {
           syllabusContent = [];
           isLoadingSyllabus = false;
@@ -128,6 +115,7 @@ class _SyllabusPageState extends State<SyllabusPage> {
         _showSnackBar('Failed to load syllabus.');
       }
     } catch (e) {
+      debugPrint("❌ fetchSyllabus error: $e");
       if (!mounted) return;
       setState(() {
         syllabusContent = [];
@@ -139,9 +127,9 @@ class _SyllabusPageState extends State<SyllabusPage> {
 
   void _showSnackBar(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   // ---------------- UI (UNCHANGED) ----------------
@@ -184,8 +172,7 @@ class _SyllabusPageState extends State<SyllabusPage> {
         itemBuilder: (context, index) {
           final exam = exams[index];
           final isSelected =
-              selectedExam != null &&
-              selectedExam!['ExamId'] == exam['ExamId'];
+              selectedExam != null && selectedExam!['ExamId'] == exam['ExamId'];
 
           return GestureDetector(
             onTap: () {
@@ -212,8 +199,9 @@ class _SyllabusPageState extends State<SyllabusPage> {
                     exam['Exam']?.toString() ?? '',
                     style: TextStyle(
                       color: isSelected ? Colors.white : Colors.black,
-                      fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.normal,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
                     ),
                   ),
                 ],

@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import '../auth_helper.dart'; // 👈 make sure correct path
+import '../auth_helper.dart'; 
 
 class ChangePasswordPage extends StatefulWidget {
   const ChangePasswordPage({super.key});
@@ -17,61 +17,70 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
 
   bool isSubmitting = false;
 
-  Future<void> handleChangePassword() async {
-    if (!_formKey.currentState!.validate()) return;
+ Future<void> handleChangePassword() async {
+  if (!_formKey.currentState!.validate()) return;
 
-    if (currentController.text == newController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("New password cannot be same as current password"),
-        ),
-      );
-      return;
-    }
+  final currentPass = currentController.text.trim();
+  final newPass = newController.text.trim();
+  final confirmPass = confirmController.text.trim();
 
-    if (newController.text != confirmController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("New password and confirm password do not match"),
-        ),
-      );
-      return;
-    }
-
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Confirm Change"),
-        content: const Text("Are you sure you want to change your password?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text("Cancel"),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text("Yes"),
-          ),
-        ],
+  if (currentPass == newPass) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("New password cannot be same as current password"),
       ),
     );
+    return;
+  }
 
-    if (confirm != true) return;
+  if (newPass != confirmPass) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("New password and confirm password do not match"),
+      ),
+    );
+    return;
+  }
 
-    setState(() => isSubmitting = true);
+  final confirmed = await showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) => AlertDialog(
+      title: const Text("Confirm Change"),
+      content: const Text("Are you sure you want to change your password?"),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: const Text("Cancel"),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(true),
+          child: const Text("Yes"),
+        ),
+      ],
+    ),
+  );
 
+  if (confirmed != true) return;
+
+  if (!mounted) return;
+  setState(() => isSubmitting = true);
+
+  try {
     final response = await AuthHelper.post(
       context,
       'https://school.edusathi.in/api/password',
       body: {
-        'current_pass': currentController.text.trim(),
-        'new_pass': newController.text.trim(),
+        'current_pass': currentPass,
+        'new_pass': newPass,
       },
     );
 
+    if (!mounted) return;
     setState(() => isSubmitting = false);
 
-    if (response == null) return; // auto-logout already handled
+    // 🔐 Auto logout already handled inside AuthHelper
+    if (response == null) return;
 
     final data = jsonDecode(response.body);
 
@@ -87,7 +96,16 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         ),
       );
     }
+  } catch (e) {
+    if (!mounted) return;
+    setState(() => isSubmitting = false);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Network error: $e")),
+    );
   }
+}
+
 
   @override
   void dispose() {

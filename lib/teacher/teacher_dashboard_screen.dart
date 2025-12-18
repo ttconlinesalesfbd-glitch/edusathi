@@ -1,9 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-
-import 'package:student_app/login_page.dart';
+import 'package:student_app/auth_helper.dart';
 import 'package:student_app/payment/payment_teacher_screen.dart';
 import 'package:student_app/teacher/complaint_teacher/teacher_complaint_list_page.dart';
 import 'package:student_app/teacher/student_list.dart';
@@ -40,11 +38,16 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   }
 
   // ---------------- INIT ----------------
-  Future<void> _initDashboard() async {
-    await loadTeacherInfo();
-    await fetchDashboardData();
-    await fetchTeacherHomeworks();
-  }
+ Future<void> _initDashboard() async {
+  await loadTeacherInfo();
+  if (!mounted) return;
+
+  await fetchDashboardData();
+  if (!mounted) return;
+
+  await fetchTeacherHomeworks();
+}
+
 
   // ---------------- TEACHER INFO ----------------
   Future<void> loadTeacherInfo() async {
@@ -59,84 +62,61 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   }
 
   // ---------------- DASHBOARD DATA ----------------
-  Future<void> fetchDashboardData() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token') ?? '';
+Future<void> fetchDashboardData() async {
+  try {
+    final response = await AuthHelper.post(
+      context,
+      'https://school.edusathi.in/api/teacher/dashboard',
+    );
 
-    try {
-      final response = await http.post(
-        Uri.parse('https://school.edusathi.in/api/teacher/dashboard'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        },
-      );
+    if (response == null) return;
 
-      if (!mounted) return;
+    final data = jsonDecode(response.body);
 
-      if (response.statusCode == 401) {
-        await prefs.clear();
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => LoginPage()),
-          (_) => false,
-        );
-        return;
-      }
+    if (!mounted) return;
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-
-        setState(() {
-          students = data['students'] ?? 0;
-          complaints = data['complaints'] ?? 0;
-          payments = int.tryParse(data['payments'].toString()) ?? 0;
-          attendance = {
-            'present': data['attendances']?['present'] ?? 0,
-            'absent': data['attendances']?['absent'] ?? 0,
-            'leave': data['attendances']?['leave'] ?? 0,
-            'half_day': data['attendances']?['half_day'] ?? 0,
-            'working_days': data['attendances']?['working_days'] ?? 0,
-          };
-        });
-      }
-    } catch (_) {
-      // silent fail – dashboard should not crash
-    } finally {
-      if (mounted) {
-        setState(() => isLoading = false);
-      }
+    setState(() {
+      students = data['students'] ?? 0;
+      complaints = data['complaints'] ?? 0;
+      payments = int.tryParse(data['payments'].toString()) ?? 0;
+      attendance = {
+        'present': data['attendances']?['present'] ?? 0,
+        'absent': data['attendances']?['absent'] ?? 0,
+        'leave': data['attendances']?['leave'] ?? 0,
+        'half_day': data['attendances']?['half_day'] ?? 0,
+        'working_days': data['attendances']?['working_days'] ?? 0,
+      };
+    });
+  } catch (_) {
+    // silent
+  } finally {
+    if (mounted) {
+      setState(() => isLoading = false);
     }
   }
+}
+
 
   // ---------------- HOMEWORK ----------------
-  Future<void> fetchTeacherHomeworks() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token') ?? '';
+ Future<void> fetchTeacherHomeworks() async {
+  try {
+    final response = await AuthHelper.post(
+      context,
+      'https://school.edusathi.in/api/teacher/homework',
+    );
 
-    try {
-      final response = await http.post(
-        Uri.parse('https://school.edusathi.in/api/teacher/homework'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        },
-      );
+    if (response == null) return;
 
-      if (!mounted) return;
-
-      if (response.statusCode == 200) {
-        final decoded = jsonDecode(response.body);
-        if (decoded is List) {
-          setState(() {
-            homeworks = List<Map<String, dynamic>>.from(decoded);
-          });
-        }
-      }
-    } catch (_) {
-      // keep dashboard stable
+    final decoded = jsonDecode(response.body);
+    if (decoded is List && mounted) {
+      setState(() {
+        homeworks = List<Map<String, dynamic>>.from(decoded);
+      });
     }
+  } catch (_) {
+    // silent
   }
+}
 
   // ---------------- UI ----------------
   @override

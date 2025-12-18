@@ -1,8 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:student_app/auth_helper.dart';
 import 'package:student_app/changePasswordPage.dart';
-import 'package:http/http.dart' as http;
+
 
 class TeacherProfilePage extends StatefulWidget {
   const TeacherProfilePage({super.key});
@@ -47,64 +48,39 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
   }
 
   // ---------------- FETCH PROFILE ----------------
-  Future<void> fetchTeacherProfile() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token') ?? '';
+ Future<void> fetchTeacherProfile() async {
+  try {
+    final response = await AuthHelper.post(
+      context,
+      'https://school.edusathi.in/api/teacher/profile',
+    );
 
-      if (token.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Session expired. Please login again.")),
-          );
-        }
-        return;
-      }
+    // Token expired → AuthHelper already logged out
+    if (response == null) return;
 
-      final response = await http
-          .post(
-            Uri.parse('https://school.edusathi.in/api/teacher/profile'),
-            headers: {
-              'Authorization': 'Bearer $token',
-              'Accept': 'application/json',
-            },
-          )
-          .timeout(const Duration(seconds: 20));
+    if (!mounted) return;
 
-      if (!mounted) return;
+    final data = jsonDecode(response.body);
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-
-        setState(() {
-          gender = data['Gender'] ?? '';
-          employeeId = data['EmployeeId'] ?? '';
-          relativeName = data['RelativeName'] ?? '';
-          dob = data['DOB'] ?? '';
-          doj = data['DOJ'] ?? '';
-          contact = data['ContactNo']?.toString() ?? '';
-          qualification = data['EmpQualification'] ?? '';
-          address = data['Address'] ?? '';
-          isLoading = false;
-        });
-      } else {
-        setState(() => isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              "Failed to load profile (${response.statusCode})",
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
-      );
-    }
+    setState(() {
+      gender = data['Gender'] ?? '';
+      employeeId = data['EmployeeId'] ?? '';
+      relativeName = data['RelativeName'] ?? '';
+      dob = data['DOB'] ?? '';
+      doj = data['DOJ'] ?? '';
+      contact = data['ContactNo']?.toString() ?? '';
+      qualification = data['EmpQualification'] ?? '';
+      address = data['Address'] ?? '';
+      isLoading = false;
+    });
+  } catch (e) {
+    if (!mounted) return;
+    setState(() => isLoading = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Failed to load profile")),
+    );
   }
+}
 
   // ---------------- UI ----------------
   @override

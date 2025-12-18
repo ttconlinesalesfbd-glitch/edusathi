@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:open_file/open_file.dart';
+import 'package:student_app/auth_helper.dart';
 import 'package:student_app/homework/homework_detail_page.dart';
 
 class HomeworkPage extends StatefulWidget {
@@ -31,27 +31,32 @@ class _HomeworkPageState extends State<HomeworkPage> {
   // =========================
   Future<void> fetchHomework() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token') ?? '';
-
-      final response = await http.post(
-        Uri.parse('https://school.edusathi.in/api/student/homework'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        },
+      final response = await AuthHelper.post(
+        context,
+        'https://school.edusathi.in/api/student/homework',
       );
 
+      // 🔴 Token expired / auto logout
+      if (response == null) {
+        if (!mounted) return;
+        setState(() => isLoading = false);
+        return;
+      }
+
       if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
         if (!mounted) return;
         setState(() {
-          homeworks = jsonDecode(response.body);
+          homeworks = data;
           isLoading = false;
         });
       } else {
         throw Exception("Failed to load homework");
       }
     } catch (e) {
+      debugPrint("❌ fetchHomework error: $e");
+
       if (!mounted) return;
       setState(() {
         isLoading = false;
@@ -80,11 +85,18 @@ class _HomeworkPageState extends State<HomeworkPage> {
     _isDownloading = true;
 
     try {
+      final token = await AuthHelper.getToken();
+      if (token.isEmpty) throw Exception("No token");
+
       final fullUrl = filePath.startsWith('http')
           ? filePath
           : 'https://school.edusathi.in/$filePath';
 
-      final response = await http.get(Uri.parse(fullUrl));
+      final response = await http.get(
+        Uri.parse(fullUrl),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
       if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
         throw Exception("Download failed");
       }
@@ -95,15 +107,18 @@ class _HomeworkPageState extends State<HomeworkPage> {
 
       await file.writeAsBytes(response.bodyBytes, flush: true);
 
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        SnackBar(content: Text("Downloaded to ${file.path}")),
-      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Downloaded to ${file.path}")));
 
       await OpenFile.open(file.path);
-    } catch (_) {
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        const SnackBar(content: Text("Download failed")),
-      );
+    } catch (e) {
+      debugPrint("❌ download error: $e");
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Download failed")));
     } finally {
       _isDownloading = false;
     }
@@ -123,95 +138,87 @@ class _HomeworkPageState extends State<HomeworkPage> {
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : homeworks.isEmpty
-              ? const Center(child: Text("No homework available"))
-              : ListView.builder(
-                  padding: const EdgeInsets.all(12),
-                  itemCount: homeworks.length,
-                  itemBuilder: (context, index) {
-                    final hw = homeworks[index];
-                    final attachmentUrl = hw['Attachment'];
+          ? const Center(child: Text("No homework available"))
+          : ListView.builder(
+              padding: const EdgeInsets.all(12),
+              itemCount: homeworks.length,
+              itemBuilder: (context, index) {
+                final hw = homeworks[index];
+                final attachmentUrl = hw['Attachment'];
 
-                    return GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                HomeworkDetailPage(homework: hw),
-                          ),
-                        );
-                      },
-                      child: Card(
-                        elevation: 4,
-                        margin: const EdgeInsets.only(bottom: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                hw['HomeworkTitle'] ?? 'Untitled',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.deepPurple,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Flexible(
-                                    child: Text(
-                                      "📅 ${formatDate(hw['WorkDate'])}",
-                                      style:
-                                          const TextStyle(fontSize: 13),
-                                    ),
-                                  ),
-                                  Flexible(
-                                    child: Text(
-                                      "Submission: ${formatDate(hw['SubmissionDate'])}",
-                                      style:
-                                          const TextStyle(fontSize: 13),
-                                      textAlign: TextAlign.right,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              if ((hw['Remark'] ?? '').isNotEmpty)
-                                Text(
-                                  "📝 ${(hw['Remark'] as String).length > 150 ? hw['Remark'].substring(0, 150) + '...' : hw['Remark']}",
-                                  style:
-                                      const TextStyle(fontSize: 13),
-                                ),
-                              if (attachmentUrl != null)
-                                Align(
-                                  alignment: Alignment.bottomRight,
-                                  child: IconButton(
-                                    icon: const Icon(
-                                      Icons.download_rounded,
-                                      color: Colors.deepPurple,
-                                    ),
-                                    onPressed: () {
-                                      downloadFile(
-                                        context,
-                                        attachmentUrl,
-                                      );
-                                    },
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
+                return GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => HomeworkDetailPage(homework: hw),
                       ),
                     );
                   },
-                ),
+                  child: Card(
+                    elevation: 4,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            hw['HomeworkTitle'] ?? 'Untitled',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.deepPurple,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  "📅 ${formatDate(hw['WorkDate'])}",
+                                  style: const TextStyle(fontSize: 13),
+                                ),
+                              ),
+                              Flexible(
+                                child: Text(
+                                  "Submission: ${formatDate(hw['SubmissionDate'])}",
+                                  style: const TextStyle(fontSize: 13),
+                                  textAlign: TextAlign.right,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          if ((hw['Remark'] ?? '').isNotEmpty)
+                            Text(
+                              "📝 ${(hw['Remark'] as String).length > 150 ? hw['Remark'].substring(0, 150) + '...' : hw['Remark']}",
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                          if (attachmentUrl != null)
+                            Align(
+                              alignment: Alignment.bottomRight,
+                              child: IconButton(
+                                icon: const Icon(
+                                  Icons.download_rounded,
+                                  color: Colors.deepPurple,
+                                ),
+                                onPressed: () {
+                                  downloadFile(context, attachmentUrl);
+                                },
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
     );
   }
 }

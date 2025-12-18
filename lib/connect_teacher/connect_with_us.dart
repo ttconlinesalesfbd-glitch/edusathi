@@ -16,9 +16,9 @@ class ConnectWithUsPage extends StatefulWidget {
   });
 
   ConnectWithUsPage.normal()
-      : teacherId = 0,
-        teacherName = "",
-        teacherPhoto = "";
+    : teacherId = 0,
+      teacherName = "",
+      teacherPhoto = "";
 
   @override
   State<ConnectWithUsPage> createState() => _ConnectWithUsPageState();
@@ -80,15 +80,16 @@ class _ConnectWithUsPageState extends State<ConnectWithUsPage> {
 
           final List<Map<String, dynamic>> newMessages =
               List<Map<String, dynamic>>.from(
-            (data['messages'] ?? []).map((m) {
-              return {
-                "sender":
-                    m['sender_type'] == 'student' ? 'user' : 'teacher',
-                "text": m['message'] ?? '',
-                "time": m['created_at'],
-              };
-            }),
-          );
+                (data['messages'] ?? []).map((m) {
+                  return {
+                    "sender": m['sender_type'] == 'student'
+                        ? 'user'
+                        : 'teacher',
+                    "text": m['message'] ?? '',
+                    "time": m['created_at'],
+                  };
+                }),
+              );
 
           if (!mounted) return;
           setState(() {
@@ -120,10 +121,7 @@ class _ConnectWithUsPageState extends State<ConnectWithUsPage> {
       final res = await AuthHelper.post(
         context,
         "https://school.edusathi.in/api/student/message/send",
-        body: {
-          "receiver_id": teacherId.toString(),
-          "message": text,
-        },
+        body: {"receiver_id": teacherId.toString(), "message": text},
       );
 
       if (res == null) return;
@@ -162,6 +160,7 @@ class _ConnectWithUsPageState extends State<ConnectWithUsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        iconTheme: IconThemeData(color: Colors.white),
         title: Row(
           children: [
             CircleAvatar(
@@ -169,7 +168,7 @@ class _ConnectWithUsPageState extends State<ConnectWithUsPage> {
               backgroundImage: teacherPhoto.isNotEmpty
                   ? NetworkImage(teacherPhoto)
                   : const AssetImage("assets/images/default_avatar.png")
-                      as ImageProvider,
+                        as ImageProvider,
             ),
             const SizedBox(width: 10),
             Column(
@@ -229,10 +228,12 @@ class _ConnectWithUsPageState extends State<ConnectWithUsPage> {
                             borderRadius: BorderRadius.only(
                               topLeft: const Radius.circular(12),
                               topRight: const Radius.circular(12),
-                              bottomLeft:
-                                  isUser ? const Radius.circular(12) : Radius.zero,
-                              bottomRight:
-                                  isUser ? Radius.zero : const Radius.circular(12),
+                              bottomLeft: isUser
+                                  ? const Radius.circular(12)
+                                  : Radius.zero,
+                              bottomRight: isUser
+                                  ? Radius.zero
+                                  : const Radius.circular(12),
                             ),
                           ),
                           child: Column(
@@ -243,8 +244,9 @@ class _ConnectWithUsPageState extends State<ConnectWithUsPage> {
                               Text(msg['text']),
                               const SizedBox(height: 2),
                               Text(
-                                DateFormat('dd MMM, hh:mm a')
-                                    .format(DateTime.parse(msg['time']).toLocal()),
+                                DateFormat(
+                                  'dd MMM, hh:mm a',
+                                ).format(DateTime.parse(msg['time']).toLocal()),
                                 style: TextStyle(
                                   fontSize: 10,
                                   color: Colors.grey.shade600,

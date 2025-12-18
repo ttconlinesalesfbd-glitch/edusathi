@@ -56,26 +56,32 @@ class _ExamSchedulePageState extends State<ExamSchedulePage> {
   // ====================================================
   Future<void> fetchExams() async {
     if (!mounted) return;
-
     setState(() => isLoadingExams = true);
 
     try {
-      final res = await AuthHelper.post(context, getExamsUrl);
+      final res = await AuthHelper.post(
+        context,
+        getExamsUrl,
+        body: {}, // 🔥 IMPORTANT: empty JSON body
+      );
 
-      // AuthHelper already handles 401 + logout
-      if (res == null) return;
+      if (res == null) {
+        if (!mounted) return;
+        setState(() => isLoadingExams = false);
+        return;
+      }
+
+      debugPrint("📘 Exams response: ${res.body}");
 
       if (res.statusCode == 200) {
-        final List decoded = jsonDecode(res.body);
+        final List<dynamic> decoded = jsonDecode(res.body);
 
-        final loadedExams = decoded
-            .map(
-              (e) => Exam(
-                id: e['ExamId'].toString(),
-                name: e['Exam'] ?? '',
-              ),
-            )
-            .toList();
+        final loadedExams = decoded.map((e) {
+          return Exam(
+            id: e['ExamId'].toString(),
+            name: e['Exam']?.toString() ?? '',
+          );
+        }).toList();
 
         if (!mounted) return;
         setState(() {
@@ -91,6 +97,7 @@ class _ExamSchedulePageState extends State<ExamSchedulePage> {
         _failExams("Failed to load exams");
       }
     } catch (e) {
+      debugPrint("❌ fetchExams error: $e");
       _failExams("Something went wrong");
     }
   }
@@ -158,8 +165,7 @@ class _ExamSchedulePageState extends State<ExamSchedulePage> {
 
   void _showSnackBar(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   // ====================================================
@@ -232,8 +238,9 @@ class _ExamSchedulePageState extends State<ExamSchedulePage> {
                     exam.name,
                     style: TextStyle(
                       color: isSelected ? Colors.white : Colors.black,
-                      fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.normal,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
                     ),
                   ),
                 ],
@@ -321,8 +328,10 @@ class _ExamSchedulePageState extends State<ExamSchedulePage> {
           const SizedBox(width: 10),
           SizedBox(
             width: 80,
-            child: Text('$label:',
-                style: const TextStyle(fontWeight: FontWeight.w500)),
+            child: Text(
+              '$label:',
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
           ),
           Expanded(
             child: Text(

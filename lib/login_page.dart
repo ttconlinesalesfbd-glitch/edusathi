@@ -5,8 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:student_app/dashboard/dashboard_screen.dart';
-import 'package:student_app/teacher/teacher_dashboard_screen.dart';
+// import 'package:student_app/dashboard/dashboard_screen.dart';
+import 'package:student_app/splash_screen.dart';
+// import 'package:student_app/teacher/teacher_dashboard_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class LoginPage extends StatefulWidget {
@@ -81,7 +82,7 @@ class _LoginPageState extends State<LoginPage> {
         final prefs = await SharedPreferences.getInstance();
 
         // 🔐 SAVE SESSION FLAGS (REQUIRED FOR ANDROID)
-        await prefs.setBool('isLoggedIn', true);
+    
         await prefs.setString('user_type', data['user_type'] ?? '');
 
         // ✅ CRITICAL FIX (ANDROID NEEDS THIS)
@@ -117,14 +118,13 @@ class _LoginPageState extends State<LoginPage> {
 
         debugPrint("➡️ NAVIGATING TO DASHBOARD");
 
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => data['user_type'] == 'Student'
-                ? const DashboardScreen()
-                : const TeacherDashboardScreen(),
-          ),
-        );
+       Navigator.pushAndRemoveUntil(
+  context,
+  MaterialPageRoute(builder: (_) => const SplashScreen()),
+  (route) => false,
+);
+return;
+
       } else {
         debugPrint("❌ LOGIN FAILED: ${data['message']}");
         setState(() {
@@ -138,10 +138,9 @@ class _LoginPageState extends State<LoginPage> {
       debugPrint("🚨 LOGIN EXCEPTION: $e");
       setState(() => _errorMessage = "Login failed. Please try again.");
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        debugPrint("🔚 LOGIN PROCESS END");
-      }
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      debugPrint("🔚 LOGIN PROCESS END");
     }
   }
 

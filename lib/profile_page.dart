@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:student_app/changePasswordPage.dart';
-import 'api_service.dart';
+import 'package:student_app/auth_helper.dart';
 
 class ProfilePage extends StatefulWidget {
   @override
@@ -51,15 +51,21 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> fetchProfileFromApi() async {
     try {
-      final response = await ApiService.post('/student/profile');
+      final res = await AuthHelper.post(
+        context,
+        'https://school.edusathi.in/api/student/profile',
+        body: {}, // 🔥 Laravel requires body
+      );
 
-      if (response.statusCode != 200) {
-        debugPrint('❌ Profile API failed: ${response.statusCode}');
+      if (res == null) return;
+
+      if (res.statusCode != 200) {
+        debugPrint('❌ Profile API failed: ${res.statusCode}');
         if (mounted) setState(() => isLoading = false);
         return;
       }
 
-      final data = jsonDecode(response.body);
+      final data = jsonDecode(res.body);
       debugPrint("📦 Profile Data: $data");
 
       final prefs = await SharedPreferences.getInstance();
@@ -102,16 +108,21 @@ class _ProfilePageState extends State<ProfilePage> {
     if (studentPhoto.isEmpty) {
       return const AssetImage('assets/images/logo_new.png');
     }
-    return NetworkImage(studentPhoto.startsWith('http')
-        ? studentPhoto
-        : 'https://school.edusathi.in/$studentPhoto');
+    return NetworkImage(
+      studentPhoto.startsWith('http')
+          ? studentPhoto
+          : 'https://school.edusathi.in/$studentPhoto',
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Student Profile", style: TextStyle(color: Colors.white)),
+        title: const Text(
+          "Student Profile",
+          style: TextStyle(color: Colors.white),
+        ),
         backgroundColor: Colors.deepPurple,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
@@ -160,9 +171,17 @@ class _ProfilePageState extends State<ProfilePage> {
                       buildInfoRow(Icons.person, "Gender", gender),
                       buildInfoRow(Icons.phone, "Contact", contact),
                       buildInfoRow(Icons.cake, "Date Of Birth", dob),
-                      buildInfoRow(Icons.calendar_today, "Admission Date", adDate),
+                      buildInfoRow(
+                        Icons.calendar_today,
+                        "Admission Date",
+                        adDate,
+                      ),
                       buildInfoRow(Icons.card_membership, "Ledger No.", ledNo),
-                      buildInfoRow(Icons.self_improvement, "Religion", religion),
+                      buildInfoRow(
+                        Icons.self_improvement,
+                        "Religion",
+                        religion,
+                      ),
                       buildInfoRow(Icons.badge, "Category", category),
                       buildInfoRow(Icons.label_important, "Caste", caste),
                       buildInfoRow(Icons.water_drop, "Blood Group", bloodGroup),
@@ -178,8 +197,10 @@ class _ProfilePageState extends State<ProfilePage> {
                           );
                         },
                         icon: const Icon(Icons.lock, color: Colors.white),
-                        label: const Text("Change Password",
-                            style: TextStyle(color: Colors.white)),
+                        label: const Text(
+                          "Change Password",
+                          style: TextStyle(color: Colors.white),
+                        ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.deepPurple,
                         ),
