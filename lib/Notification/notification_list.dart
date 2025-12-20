@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:student_app/auth_helper.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:student_app/complaint/complaint_detail_page.dart';
 import 'package:student_app/dashboard/dashboard_screen.dart';
 import 'package:student_app/Attendance_UI/stu_attendance_page.dart';
@@ -25,78 +26,93 @@ class _NotificationListPageState extends State<NotificationListPage> {
 
   Future<void> fetchNotifications() async {
     try {
-      final response = await AuthHelper.post(
-        context,
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token') ?? '';
+
+      final url = Uri.parse(
         "https://school.edusathi.in/api/student/notifications",
       );
+      final headers = {
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $token',
+      };
 
-     
-      if (response == null) return;
+      print("🔑 Token: $token");
 
-      if (!mounted) return;
+      final response = await http.post(url, headers: headers);
+      print("📥 Status: ${response.statusCode}");
+      print("📥 Body: ${response.body}");
 
       if (response.statusCode == 200) {
-        final decoded = jsonDecode(response.body);
+        final data = json.decode(response.body);
+        if (data['status'] == true && data['data'] != null) {
+          setState(() {
+            notifications = data['data'];
+            isLoading = false;
+          });
+        } else {
+          setState(() {
+            isLoading = false;
+          });
+        }
+      } else {
         setState(() {
-          notifications = decoded['data'] ?? [];
           isLoading = false;
         });
-      } else {
-        setState(() => isLoading = false);
       }
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => isLoading = false);
+    } catch (e) {
+      print("🚨 Error fetching notifications: $e");
+      setState(() {
+        isLoading = false;
+      });
     }
   }
 
-  void handleNotificationTap(Map<String, dynamic> item) {
-    final type = item['type'] ?? '';
-    final id = item['id'];
-
-    switch (type) {
-      case 'homework':
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => HomeworkDetailPage(homework: item)),
-        );
-        break;
-
-      case 'attendance':
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => AttendanceAnalyticsPage()),
-        );
-        break;
-
-      case 'complaint':
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ComplaintDetailPage(
-              complaintId: id,
-              date: item['date'] ?? '',
-              description: item['description'] ?? '',
-              status: item['status'] ?? 0,
-            ),
+  void handleNotificationTap(String type, int id, Map<String, dynamic> item) {
+    if (type == "homework") {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => HomeworkDetailPage(homework: item)),
+      );
+    } else if (type == "attendance") {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => AttendanceAnalyticsPage()),
+      );
+    } else if (type == "complaint") {
+      final complaintId = id;
+      final date =
+          notifications.firstWhere((item) => item["id"] == id)["date"] ?? "";
+      final description =
+          notifications.firstWhere((item) => item["id"] == id)["description"] ??
+          "";
+      final status =
+          notifications.firstWhere((item) => item["id"] == id)["status"] ?? "";
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ComplaintDetailPage(
+            complaintId: complaintId,
+            date: date,
+            description: description,
+            status: status,
           ),
-        );
-        break;
-
-      case 'notice':
-      case 'event':
-      case 'student alert':
-      case 'due reminder':
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => DashboardScreen()),
-        );
-        break;
-
-      default:
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("No screen mapped for type: $type")),
-        );
+        ),
+      );
+    } else if ([
+      "notice",
+      "event",
+      "student alert",
+      "due reminder",
+    ].contains(type)) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => DashboardScreen()),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("No screen mapped for type: $type")),
+      );
     }
   }
 
@@ -122,18 +138,21 @@ class _NotificationListPageState extends State<NotificationListPage> {
               itemCount: notifications.length,
               itemBuilder: (context, index) {
                 final item = notifications[index];
-                final type = item['type'] ?? '';
+                final type = item["type"] ?? "";
+                final id = item["id"];
+                final date = item["date"] ?? "";
+                final time = item["time"] ?? "";
 
                 final title = type == "homework"
-                    ? item['HomeworkTitle'] ?? item['title'] ?? "Homework"
-                    : item['title'] ?? "Notification";
+                    ? item["HomeworkTitle"] ?? item["title"] ?? "Homework Title"
+                    : item["title"] ?? "No Title";
 
                 final description = type == "homework"
-                    ? item['Remark'] ?? item['description'] ?? ''
-                    : item['description'] ?? '';
+                    ? item["Remark"] ?? item["description"] ?? ""
+                    : item["description"] ?? "";
 
                 return GestureDetector(
-                  onTap: () => handleNotificationTap(item),
+                  onTap: () => handleNotificationTap(type, id, item),
                   child: Container(
                     margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.all(14),
@@ -151,6 +170,7 @@ class _NotificationListPageState extends State<NotificationListPage> {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Icon section
                         CircleAvatar(
                           radius: 22,
                           backgroundColor: type == "homework"
@@ -173,6 +193,8 @@ class _NotificationListPageState extends State<NotificationListPage> {
                           ),
                         ),
                         const SizedBox(width: 12),
+
+                        // Text section
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -182,41 +204,49 @@ class _NotificationListPageState extends State<NotificationListPage> {
                                 style: const TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w600,
+                                  color: Colors.black87,
                                 ),
                               ),
                               const SizedBox(height: 6),
                               Text(
                                 description,
-                                maxLines: 3,
+                                maxLines: 4,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                   fontSize: 14,
                                   color: Colors.black54,
+                                  height: 1.3,
                                 ),
                               ),
                               const SizedBox(height: 8),
                               Row(
                                 children: [
-                                  const Icon(
+                                  Icon(
                                     Icons.calendar_today,
                                     size: 14,
-                                    color: Colors.grey,
+                                    color: Colors.grey.shade600,
                                   ),
                                   const SizedBox(width: 4),
                                   Text(
-                                    item['date'] ?? '',
-                                    style: const TextStyle(fontSize: 13),
+                                    date,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.black54,
+                                    ),
                                   ),
                                   const SizedBox(width: 10),
-                                  const Icon(
+                                  Icon(
                                     Icons.access_time,
                                     size: 14,
-                                    color: Colors.grey,
+                                    color: Colors.grey.shade600,
                                   ),
                                   const SizedBox(width: 4),
                                   Text(
-                                    item['time'] ?? '',
-                                    style: const TextStyle(fontSize: 13),
+                                    time,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.black54,
+                                    ),
                                   ),
                                 ],
                               ),

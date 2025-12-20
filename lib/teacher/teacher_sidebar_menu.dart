@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:student_app/login_page.dart';
-import 'package:student_app/admin/admin_dashboard.dart';
 import 'package:student_app/alert/stu_alert.dart';
 import 'package:student_app/connect_teacher/teacher_chat_list.dart';
 import 'package:student_app/payment/payment_teacher_screen.dart';
@@ -159,12 +157,12 @@ class _TeacherSidebarMenuState extends State<TeacherSidebarMenu> {
             'Dashboard',
             () => _navigate(context, const TeacherDashboardScreen()),
           ),
-          sidebarItem(
-            context,
-            Icons.person,
-            'Admin',
-            () => _navigate(context, const AdminDashboardPage()),
-          ),
+          // sidebarItem(
+          //   context,
+          //   Icons.person,
+          //   'Admin',
+          //   () => _navigate(context, const AdminDashboardPage()),
+          // ),
           sidebarItem(
             context,
             Icons.person,

@@ -22,6 +22,46 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
     _fetchAttendance();
   }
 
+  Map<String, int> _calculateTotals() {
+    int present = 0;
+    int absent = 0;
+    int leave = 0;
+    int holiday = 0;
+    int halfDay = 0;
+    int notMarked = 0;
+
+    for (final status in _attendanceMap.values) {
+      switch (status) {
+        case 'Present':
+          present++;
+          break;
+        case 'Absent':
+          absent++;
+          break;
+        case 'Leave':
+          leave++;
+          break;
+        case 'Holiday':
+          holiday++;
+          break;
+        case 'HalfDay':
+          halfDay++;
+          break;
+        default:
+          notMarked++;
+      }
+    }
+
+    return {
+      'Present': present,
+      'Absent': absent,
+      'Leave': leave,
+      'Holiday': holiday,
+      'HalfDay': halfDay,
+      'Not Marked': notMarked,
+    };
+  }
+
   // ====================================================
   // 🔐 SAFE FETCH ATTENDANCE (iOS + Android)
   // ====================================================
@@ -65,9 +105,9 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
       debugPrint("🚨 TEACHER ATTENDANCE ERROR: $e");
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Something went wrong")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Something went wrong")));
     } finally {
       if (!mounted) return;
       setState(() => _isLoading = false);
@@ -81,7 +121,7 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
     final firstOfMonth = DateTime(year, month, 1);
     final daysInMonth = DateTime(year, month + 1, 0).day;
     final startWeekday = firstOfMonth.weekday % 7;
-
+    final totals = _calculateTotals();
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -98,6 +138,7 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
               const SizedBox(height: 12),
               _buildCalendarContainer(year, month, daysInMonth, startWeekday),
               const SizedBox(height: 10),
+              _buildSummaryBox(totals),
             ],
           ),
           if (_isLoading)
@@ -105,14 +146,80 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
               child: Container(
                 color: Colors.black.withOpacity(0.1),
                 child: const Center(
-                  child: CircularProgressIndicator(
-                    color: Colors.deepPurple,
-                  ),
+                  child: CircularProgressIndicator(color: Colors.deepPurple),
                 ),
               ),
             ),
         ],
       ),
+    );
+  }
+
+  // ====================================================
+  // 📊 SUMMARY BOX (UNCHANGED)
+  // ====================================================
+  Widget _buildSummaryBox(Map<String, int> totals) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Attendance Summary',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.deepPurple,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _buildStatusItem('Present', totals['Present']!, Colors.green),
+              _buildStatusItem('Absent', totals['Absent']!, Colors.red),
+              _buildStatusItem('Leave', totals['Leave']!, Colors.orange),
+              _buildStatusItem('Holiday', totals['Holiday']!, Colors.black),
+              _buildStatusItem('Half Day', totals['HalfDay']!, Colors.blue),
+              _buildStatusItem(
+                'Not Marked',
+                totals['Not Marked']!,
+                Colors.grey,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusItem(String label, int count, Color color) {
+    return Column(
+      children: [
+        CircleAvatar(radius: 6, backgroundColor: color),
+        const SizedBox(height: 4),
+        Text(
+          '$count',
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+        ),
+        Text(
+          label,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 11, color: Colors.black54),
+        ),
+      ],
     );
   }
 
@@ -236,6 +343,12 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
                     break;
                   case 'Leave':
                     dotColor = Colors.orange;
+                    break;
+                  case 'Holiday':
+                    dotColor = Colors.black;
+                    break;
+                  case 'HalfDay':
+                    dotColor = Colors.blue;
                     break;
                   default:
                     dotColor = Colors.grey;
