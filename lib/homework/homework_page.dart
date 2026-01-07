@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
-import 'package:student_app/auth_helper.dart';
+import 'package:student_app/api_service.dart';
 import 'package:student_app/homework/homework_detail_page.dart';
 
 class HomeworkPage extends StatefulWidget {
@@ -31,10 +31,7 @@ class _HomeworkPageState extends State<HomeworkPage> {
   // =========================
   Future<void> fetchHomework() async {
     try {
-      final response = await AuthHelper.post(
-        context,
-        'https://school.edusathi.in/api/student/homework',
-      );
+      final response = await ApiService.post(context, '/student/homework');
 
       // 🔴 Token expired / auto logout
       if (response == null) {
@@ -80,45 +77,57 @@ class _HomeworkPageState extends State<HomeworkPage> {
   // =========================
   // 📥 SAFE FILE DOWNLOAD
   // =========================
-  Future<void> downloadFile(BuildContext context, String filePath) async {
+  Future<void> downloadFile(BuildContext context, String attachment) async {
     if (_isDownloading) return;
     _isDownloading = true;
 
     try {
-      final token = await AuthHelper.getToken();
-      if (token.isEmpty) throw Exception("No token");
+      // ✅ Safe URL resolve (no hardcode)
+      final fullUrl = attachment.startsWith('http')
+          ? attachment
+          : ApiService.homeworkAttachment(attachment);
 
-      final fullUrl = filePath.startsWith('http')
-          ? filePath
-          : 'https://school.edusathi.in/$filePath';
+      final fileName = fullUrl.split('/').last;
 
-      final response = await http.get(
-        Uri.parse(fullUrl),
-        headers: {'Authorization': 'Bearer $token'},
-      );
+      debugPrint("⬇️ Download URL: $fullUrl");
 
+      final response = await http.get(Uri.parse(fullUrl));
       if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
         throw Exception("Download failed");
       }
 
-      final dir = await getApplicationDocumentsDirectory();
-      final fileName = fullUrl.split('/').last;
-      final file = File('${dir.path}/$fileName');
+      // ================= ANDROID =================
+      if (Platform.isAndroid) {
+        final downloadsDir = Directory('/storage/emulated/0/Download');
+        final file = File('${downloadsDir.path}/$fileName');
 
-      await file.writeAsBytes(response.bodyBytes, flush: true);
+        await file.writeAsBytes(response.bodyBytes, flush: true);
 
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Downloaded to ${file.path}")));
+        // ✅ PREVIEW OPEN
+        await OpenFile.open(file.path);
 
-      await OpenFile.open(file.path);
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("📥 Downloaded & preview opened")),
+        );
+      }
+
+      // ================= iOS =================
+      if (Platform.isIOS) {
+        final dir = await getApplicationDocumentsDirectory();
+        final file = File('${dir.path}/$fileName');
+
+        await file.writeAsBytes(response.bodyBytes, flush: true);
+
+        // ✅ PREVIEW OPEN
+        await OpenFile.open(file.path);
+      }
     } catch (e) {
       debugPrint("❌ download error: $e");
-      if (!mounted) return;
+      if (!context.mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text("Download failed")));
+      ).showSnackBar(const SnackBar(content: Text("❌ Download failed")));
     } finally {
       _isDownloading = false;
     }
@@ -131,8 +140,8 @@ class _HomeworkPageState extends State<HomeworkPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Homework', style: TextStyle(color: Colors.white)),
-        backgroundColor: Colors.deepPurple,
+        title: const Text('Homeworks', style: TextStyle(color: Colors.white)),
+        backgroundColor: AppColors.primary,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: isLoading
@@ -171,7 +180,7 @@ class _HomeworkPageState extends State<HomeworkPage> {
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
-                              color: Colors.deepPurple,
+                              color: AppColors.primary,
                             ),
                           ),
                           const SizedBox(height: 6),
@@ -205,7 +214,7 @@ class _HomeworkPageState extends State<HomeworkPage> {
                               child: IconButton(
                                 icon: const Icon(
                                   Icons.download_rounded,
-                                  color: Colors.deepPurple,
+                                  color: AppColors.primary,
                                 ),
                                 onPressed: () {
                                   downloadFile(context, attachmentUrl);

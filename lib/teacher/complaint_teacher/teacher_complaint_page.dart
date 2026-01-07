@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:student_app/auth_helper.dart';
+import 'package:student_app/api_service.dart';
+
 
 class TeacherComplaintPage extends StatefulWidget {
   final int complaintId;
@@ -36,7 +37,7 @@ class _TeacherComplaintPageState extends State<TeacherComplaintPage> {
     try {
       if (mounted) setState(() => isLoading = true);
 
-      final response = await AuthHelper.post(
+      final response = await ApiService.post(
         context,
         'https://school.edusathi.in/api/teacher/complaint/history',
         body: {'ComplaintId': widget.complaintId},
@@ -114,7 +115,7 @@ class _TeacherComplaintPageState extends State<TeacherComplaintPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Complaint Details"),
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
       ),
       body: isLoading
@@ -128,9 +129,9 @@ class _TeacherComplaintPageState extends State<TeacherComplaintPage> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.deepPurple.shade50,
+                      color: AppColors.primary.shade50,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.deepPurple.shade100),
+                      border: Border.all(color: AppColors.primary.shade100),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -173,7 +174,7 @@ class _TeacherComplaintPageState extends State<TeacherComplaintPage> {
                                 "📅 ${entry['Date'] ?? ''}",
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.deepPurple,
+                                  color: AppColors.primary,
                                 ),
                               ),
                               const SizedBox(height: 4),

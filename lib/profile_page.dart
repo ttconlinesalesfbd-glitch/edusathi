@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:student_app/api_service.dart';
 import 'package:student_app/changePasswordPage.dart';
-import 'package:student_app/auth_helper.dart';
 
 class ProfilePage extends StatefulWidget {
   @override
@@ -33,8 +33,12 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   void initState() {
     super.initState();
-    loadLocalData();
-    fetchProfileFromApi();
+    _initProfile();
+  }
+
+  Future<void> _initProfile() async {
+    await loadLocalData();
+    await fetchProfileFromApi();
   }
 
   Future<void> loadLocalData() async {
@@ -51,9 +55,9 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> fetchProfileFromApi() async {
     try {
-      final res = await AuthHelper.post(
+      final res = await ApiService.post(
         context,
-        'https://school.edusathi.in/api/student/profile',
+        '/student/profile',
         body: {}, // 🔥 Laravel requires body
       );
 

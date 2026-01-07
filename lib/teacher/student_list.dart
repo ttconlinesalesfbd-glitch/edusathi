@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:student_app/auth_helper.dart';
+import 'package:student_app/api_service.dart';
+
 
 class StudentListPage extends StatefulWidget {
   const StudentListPage({super.key});
@@ -28,9 +29,9 @@ class _StudentListPageState extends State<StudentListPage> {
     setState(() => _isLoading = true);
 
     try {
-      final response = await AuthHelper.post(
+      final response = await ApiService.post(
         context,
-        'https://school.edusathi.in/api/teacher/student/list',
+        '/teacher/student/list',
       );
 
       if (response == null) {
@@ -106,7 +107,7 @@ class _StudentListPageState extends State<StudentListPage> {
           'Student List',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: AppColors.primary,
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           IconButton(
@@ -117,7 +118,7 @@ class _StudentListPageState extends State<StudentListPage> {
       ),
       body: _isLoading
           ? const Center(
-              child: CircularProgressIndicator(color: Colors.deepPurple),
+              child: CircularProgressIndicator(color: AppColors.primary),
             )
           : _students.isEmpty
           ? const Center(
@@ -145,7 +146,7 @@ class _StudentListPageState extends State<StudentListPage> {
                           style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
-                            color: Colors.deepPurple,
+                            color: AppColors.primary,
                           ),
                         ),
                         const SizedBox(height: 6),

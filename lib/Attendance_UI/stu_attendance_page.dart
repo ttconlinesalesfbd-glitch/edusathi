@@ -2,7 +2,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:percent_indicator/percent_indicator.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:student_app/auth_helper.dart';
+import 'package:student_app/api_service.dart';
+
 
 class AttendanceAnalyticsPage extends StatefulWidget {
   const AttendanceAnalyticsPage({super.key});
@@ -75,10 +76,10 @@ class _AttendanceAnalyticsPageState extends State<AttendanceAnalyticsPage> {
     setState(() => _isLoading = true);
 
     try {
-      final res = await AuthHelper.post(
-        context,
-        "https://school.edusathi.in/api/student/attendance/analytics",
-      );
+      final res = await ApiService.post(
+  context,
+  "/student/attendance/analytics",
+);
 
       // AuthHelper already handles 401 + logout
       if (res == null) return;

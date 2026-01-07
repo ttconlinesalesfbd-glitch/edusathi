@@ -4,14 +4,12 @@
 
     <!-- 🔐 Permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name="${applicationName}"
         android:label="EduSathi"
         android:icon="@mipmap/ic_launcher"
-          android:requestLegacyExternalStorage="true"
     android:usesCleartextTraffic="true">
 
         <activity

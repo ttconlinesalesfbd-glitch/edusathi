@@ -3,16 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:device_info_plus/device_info_plus.dart';
 
 class TeacherHomeworkDetailPage extends StatelessWidget {
   final Map<String, dynamic> homework;
 
-  const TeacherHomeworkDetailPage({
-    super.key,
-    required this.homework,
-  });
+  const TeacherHomeworkDetailPage({super.key, required this.homework});
 
   String formatDate(String? dateStr) {
     if (dateStr == null || dateStr.isEmpty) return '';
@@ -26,23 +21,6 @@ class TeacherHomeworkDetailPage extends StatelessWidget {
     }
   }
 
-  // ---------------- PERMISSION (ANDROID ONLY) ----------------
-  Future<bool> requestStoragePermission() async {
-    if (!Platform.isAndroid) return true;
-
-    final androidInfo = await DeviceInfoPlugin().androidInfo;
-    final sdkInt = androidInfo.version.sdkInt;
-
-    PermissionStatus status;
-    if (sdkInt >= 33) {
-      status = await Permission.photos.request();
-    } else {
-      status = await Permission.storage.request();
-    }
-
-    return status.isGranted;
-  }
-
   // ---------------- DOWNLOAD FILE ----------------
   Future<void> downloadFile(
     BuildContext context,
@@ -50,35 +28,46 @@ class TeacherHomeworkDetailPage extends StatelessWidget {
     String fileName,
   ) async {
     try {
-      // 📂 Platform-safe directory
-      final Directory dir = Platform.isAndroid
-          ? (await getExternalStorageDirectory())!
-          : await getApplicationDocumentsDirectory();
-
-      final String filePath = '${dir.path}/$fileName';
-
       final response = await http.get(Uri.parse(url));
 
-      if (response.statusCode != 200) {
+      if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
         throw Exception("Failed to download file");
       }
 
-      final file = File(filePath);
-      await file.writeAsBytes(response.bodyBytes);
+      // ================= ANDROID =================
+      if (Platform.isAndroid) {
+        // ✅ REAL Downloads folder (user visible)
+        final Directory downloadsDir = Directory(
+          '/storage/emulated/0/Download',
+        );
 
-      if (context.mounted) {
+        final String filePath = '${downloadsDir.path}/$fileName';
+        final File file = File(filePath);
+
+        await file.writeAsBytes(response.bodyBytes, flush: true);
+
+        if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("📥 Downloaded to $filePath")),
+          const SnackBar(content: Text("📥 File saved to Downloads folder")),
         );
       }
 
-      await OpenFile.open(filePath);
+      // ================= iOS =================
+      if (Platform.isIOS) {
+        final Directory dir = await getApplicationDocumentsDirectory();
+        final String filePath = '${dir.path}/$fileName';
+
+        final File file = File(filePath);
+        await file.writeAsBytes(response.bodyBytes, flush: true);
+
+        if (!context.mounted) return;
+        await OpenFile.open(filePath); // Files app
+      }
     } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("❌ Download failed")),
-        );
-      }
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("❌ Download failed")));
     }
   }
 
@@ -86,7 +75,9 @@ class TeacherHomeworkDetailPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final attachment = homework['Attachment'];
     final String? fileName =
-        attachment != null ? attachment.split('/').last : null;
+        (attachment != null && attachment.toString().isNotEmpty)
+        ? Uri.parse(attachment.toString()).pathSegments.last
+        : null;
 
     return Scaffold(
       appBar: AppBar(
@@ -142,22 +133,21 @@ class TeacherHomeworkDetailPage extends StatelessWidget {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.deepPurple,
                     ),
-                    onPressed: () async {
-                      final hasPermission =
-                          await requestStoragePermission();
-                      if (!hasPermission) return;
+                    onPressed: () {
+                      String fileUrl = homework['Attachment'].toString();
 
-                      final fileUrl =
-                          'https://school.edusathi.in/$attachment';
+                      if (!fileUrl.startsWith('http')) {
+                        fileUrl =
+                            'https://s3.ap-south-1.amazonaws.com/'
+                            'school.edusathi.in/homeworks/$fileUrl';
+                      }
 
-                      await downloadFile(
-                        context,
-                        fileUrl,
-                        fileName,
-                      );
+                      debugPrint("📎 TEACHER HW DETAIL DOWNLOAD URL: $fileUrl");
+
+                      downloadFile(context, fileUrl, fileName);
                     },
-                    icon:
-                        const Icon(Icons.download, color: Colors.white),
+
+                    icon: const Icon(Icons.download, color: Colors.white),
                     label: const Text(
                       "Download Attachment",
                       style: TextStyle(color: Colors.white),

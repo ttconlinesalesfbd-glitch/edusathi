@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:student_app/auth_helper.dart';
+import 'package:student_app/api_service.dart';
 
 class MarkAttendancePage extends StatefulWidget {
   const MarkAttendancePage({super.key});
@@ -26,11 +26,12 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
     super.initState();
     fetchStudents();
   }
-@override
-void dispose() {
-  searchController.dispose();
-  super.dispose();
-}
+
+  @override
+  void dispose() {
+    searchController.dispose();
+    super.dispose();
+  }
 
   // ====================================================
   // 🔐 SAFE FETCH STUDENTS (iOS + Android)
@@ -41,12 +42,10 @@ void dispose() {
     setState(() => isLoading = true);
 
     try {
-      final res = await AuthHelper.post(
+      final res = await ApiService.post(
         context,
-        'https://school.edusathi.in/api/teacher/std_attendance',
-        body: {
-          'Date': DateFormat('yyyy-MM-dd').format(selectedDate),
-        },
+        "/teacher/std_attendance",
+        body: {'Date': DateFormat('yyyy-MM-dd').format(selectedDate)},
       );
 
       // AuthHelper already handles 401 + logout
@@ -58,8 +57,9 @@ void dispose() {
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
 
-        final List<Map<String, dynamic>> list =
-            List<Map<String, dynamic>>.from(data);
+        final List<Map<String, dynamic>> list = List<Map<String, dynamic>>.from(
+          data,
+        );
 
         for (final student in list) {
           if (student['Status'] == 'not_marked') {
@@ -84,9 +84,9 @@ void dispose() {
       debugPrint("🚨 FETCH ATTENDANCE ERROR: $e");
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Something went wrong")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Something went wrong")));
     } finally {
       if (!mounted) return;
       setState(() => isLoading = false);
@@ -103,10 +103,9 @@ void dispose() {
       filteredStudents = students
           .where(
             (s) =>
-                s['StudentName']
-                    .toString()
-                    .toLowerCase()
-                    .contains(query.toLowerCase()) ||
+                s['StudentName'].toString().toLowerCase().contains(
+                  query.toLowerCase(),
+                ) ||
                 s['RollNo'].toString().contains(query),
           )
           .toList();
@@ -174,20 +173,15 @@ void dispose() {
       final payload = {
         "AttendanceDate": DateFormat('yyyy-MM-dd').format(selectedDate),
         "Attendance": students
-            .map(
-              (s) => {
-                "StudentId": s['id'],
-                "Status": s['Status'],
-              },
-            )
+            .map((s) => {"StudentId": s['id'], "Status": s['Status']})
             .toList(),
       };
 
       debugPrint("📤 SUBMIT PAYLOAD: $payload");
 
-      final res = await AuthHelper.post(
+      final res = await ApiService.post(
         context,
-        'https://school.edusathi.in/api/teacher/std_attendance/store',
+        "/teacher/std_attendance/store",
         body: payload,
       );
 
@@ -202,18 +196,16 @@ void dispose() {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            result['message'] ?? 'Attendance updated successfully',
-          ),
+          content: Text(result['message'] ?? 'Attendance updated successfully'),
         ),
       );
     } catch (e) {
       debugPrint("🚨 SUBMIT ERROR: $e");
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Submission failed")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Submission failed")));
     } finally {
       if (!mounted) return;
       setState(() => isSubmitting = false);
@@ -287,6 +279,7 @@ void dispose() {
       ),
     );
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(

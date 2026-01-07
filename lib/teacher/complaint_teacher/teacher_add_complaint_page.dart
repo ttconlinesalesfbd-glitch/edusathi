@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:student_app/auth_helper.dart';
+import 'package:student_app/api_service.dart';
 
 class TeacherAddComplaintPage extends StatefulWidget {
   const TeacherAddComplaintPage({super.key});
@@ -37,9 +37,9 @@ class _TeacherAddComplaintPageState extends State<TeacherAddComplaintPage> {
   debugPrint("🟡 fetchStudents START");
 
   try {
-    final response = await AuthHelper.post(
+    final response = await ApiService.post(
       context,
-      'https://school.edusathi.in/api/get_student',
+      '/get_student',
     );
 
     // token expired → AuthHelper logout kara dega
@@ -89,9 +89,9 @@ class _TeacherAddComplaintPageState extends State<TeacherAddComplaintPage> {
   debugPrint("🟡 submitComplaint START");
 
   try {
-    final response = await AuthHelper.post(
+    final response = await ApiService.post(
       context,
-      'https://school.edusathi.in/api/teacher/complaint/store',
+      '/teacher/complaint/store',
       body: {
         'StudentId': selectedStudentId.toString(),
         'Description': descriptionController.text.trim(),
@@ -143,7 +143,7 @@ class _TeacherAddComplaintPageState extends State<TeacherAddComplaintPage> {
           "Add Complaint",
           style: TextStyle(color: Colors.white),
         ),
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: AppColors.primary,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: Padding(
@@ -205,7 +205,7 @@ class _TeacherAddComplaintPageState extends State<TeacherAddComplaintPage> {
                 icon: const Icon(Icons.send),
                 label: const Text("Submit"),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple,
+                  backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 24,

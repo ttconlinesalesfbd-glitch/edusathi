@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:student_app/auth_helper.dart';
+import 'package:student_app/api_service.dart';
+
 
 class PaymentTeacherScreen extends StatefulWidget {
   const PaymentTeacherScreen({super.key});
@@ -10,7 +11,7 @@ class PaymentTeacherScreen extends StatefulWidget {
 }
 
 class _PaymentTeacherScreenState extends State<PaymentTeacherScreen> {
-  final String apiUrl = 'https://school.edusathi.in/api/teacher/payment';
+
   List<dynamic> payments = [];
   bool isLoading = true;
 
@@ -27,9 +28,9 @@ class _PaymentTeacherScreenState extends State<PaymentTeacherScreen> {
     setState(() => isLoading = true);
 
     try {
-      final response = await AuthHelper.post(
+      final response = await ApiService.post(
         context,
-        apiUrl, // already full URL
+       "/teacher/payment" , // already full URL
       );
 
       // 🔐 If token invalid → auto logout already handled
@@ -94,13 +95,13 @@ class _PaymentTeacherScreenState extends State<PaymentTeacherScreen> {
           "Teacher Payments",
           style: TextStyle(color: Colors.white),
         ),
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: AppColors.primary,
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: isLoading
           ? const Center(
-              child: CircularProgressIndicator(color: Colors.deepPurple),
+              child: CircularProgressIndicator(color: AppColors.primary),
             )
           : payments.isEmpty
           ? const Center(child: Text("No payments found."))

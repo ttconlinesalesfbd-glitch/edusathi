@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:student_app/auth_helper.dart';
+import 'package:student_app/api_service.dart';
 
 class ComplaintDetailPage extends StatefulWidget {
   final int complaintId;
@@ -25,9 +25,6 @@ class _ComplaintDetailPageState extends State<ComplaintDetailPage> {
   List<dynamic> history = [];
   bool isLoading = true;
 
-  final String apiUrl =
-      'https://school.edusathi.in/api/student/complaint/history';
-
   @override
   void initState() {
     super.initState();
@@ -43,12 +40,10 @@ class _ComplaintDetailPageState extends State<ComplaintDetailPage> {
     setState(() => isLoading = true);
 
     try {
-      final res = await AuthHelper.post(
+      final res = await ApiService.post(
         context,
-        apiUrl,
-        body: {
-          "ComplaintId": widget.complaintId,
-        },
+        '/student/complaint/history',
+        body: {"ComplaintId": widget.complaintId},
       );
 
       // AuthHelper already handles 401 + logout
@@ -77,9 +72,9 @@ class _ComplaintDetailPageState extends State<ComplaintDetailPage> {
       debugPrint("🚨 HISTORY ERROR: $e");
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Something went wrong")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Something went wrong")));
     } finally {
       if (!mounted) return;
       setState(() => isLoading = false);
@@ -111,12 +106,12 @@ class _ComplaintDetailPageState extends State<ComplaintDetailPage> {
           "Complaint Details",
           style: TextStyle(color: Colors.white),
         ),
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: AppColors.primary,
         leading: const BackButton(color: Colors.white),
       ),
       body: isLoading
           ? const Center(
-              child: CircularProgressIndicator(color: Colors.deepPurple),
+              child: CircularProgressIndicator(color: AppColors.primary),
             )
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16),
@@ -138,7 +133,7 @@ class _ComplaintDetailPageState extends State<ComplaintDetailPage> {
                             children: [
                               const Icon(
                                 Icons.date_range,
-                                color: Colors.deepPurple,
+                                color: AppColors.primary,
                               ),
                               const SizedBox(width: 8),
                               Text(
@@ -154,8 +149,9 @@ class _ComplaintDetailPageState extends State<ComplaintDetailPage> {
                                   vertical: 4,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: getStatusColor(widget.status)
-                                      .withOpacity(0.1),
+                                  color: getStatusColor(
+                                    widget.status,
+                                  ).withOpacity(0.1),
                                   border: Border.all(
                                     color: getStatusColor(widget.status),
                                   ),
@@ -185,10 +181,7 @@ class _ComplaintDetailPageState extends State<ComplaintDetailPage> {
                   // 🧾 History
                   const Text(
                     "Complaint History",
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   if (history.isEmpty)
@@ -214,7 +207,7 @@ class _ComplaintDetailPageState extends State<ComplaintDetailPage> {
                                   const Icon(
                                     Icons.timeline,
                                     size: 18,
-                                    color: Colors.deepPurple,
+                                    color: AppColors.primary,
                                   ),
                                   const SizedBox(width: 6),
                                   Text(
@@ -227,8 +220,10 @@ class _ComplaintDetailPageState extends State<ComplaintDetailPage> {
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                item['Description']
-                                        ?.replaceAll(r'\r\n', '\n') ??
+                                item['Description']?.replaceAll(
+                                      r'\r\n',
+                                      '\n',
+                                    ) ??
                                     '',
                                 style: const TextStyle(fontSize: 14),
                               ),

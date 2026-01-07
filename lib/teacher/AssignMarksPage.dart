@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:student_app/auth_helper.dart';
+import 'package:student_app/api_service.dart';
+
 
 class AssignMarksPage extends StatefulWidget {
   const AssignMarksPage({super.key});
@@ -48,9 +49,9 @@ class _AssignMarksPageState extends State<AssignMarksPage> {
   // ---------------- EXAMS ----------------
   Future<void> fetchExams() async {
     try {
-      final response = await AuthHelper.post(
+      final response = await ApiService.post(
         context,
-        "https://school.edusathi.in/api/get_exam",
+        "/get_exam",
       );
 
       if (response == null || !mounted) return;
@@ -72,9 +73,9 @@ class _AssignMarksPageState extends State<AssignMarksPage> {
   // ---------------- SUBJECTS ----------------
   Future<void> fetchSubjects() async {
     try {
-      final response = await AuthHelper.post(
+      final response = await ApiService.post(
         context,
-        "https://school.edusathi.in/api/get_subject",
+        "/get_subject",
       );
 
       if (response == null || !mounted) return;
@@ -100,9 +101,9 @@ class _AssignMarksPageState extends State<AssignMarksPage> {
     setState(() => isLoading = true);
 
     try {
-      final response = await AuthHelper.post(
+      final response = await ApiService.post(
         context,
-        "https://school.edusathi.in/api/teacher/mark",
+        "/teacher/mark",
         body: {"ExamId": selectedExamId, "SubjectId": selectedSubjectId},
       );
 
@@ -187,9 +188,9 @@ class _AssignMarksPageState extends State<AssignMarksPage> {
     };
 
     try {
-      final response = await AuthHelper.post(
+      final response = await ApiService.post(
         context,
-        "https://school.edusathi.in/api/teacher/mark/store",
+        "/teacher/mark/store",
         body: payload,
       );
 
@@ -231,7 +232,7 @@ class _AssignMarksPageState extends State<AssignMarksPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Assign Marks"),
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
       ),
 
@@ -286,7 +287,7 @@ class _AssignMarksPageState extends State<AssignMarksPage> {
                         child: ElevatedButton(
                           onPressed: () => fetchStudents(),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.deepPurple,
+                            backgroundColor: AppColors.primary,
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(
                               horizontal: 24,
@@ -539,7 +540,7 @@ class _AssignMarksPageState extends State<AssignMarksPage> {
                   onPressed: isSubmitting ? null : updateMarks,
                   style: ElevatedButton.styleFrom(
                     minimumSize: const Size.fromHeight(50),
-                    backgroundColor: Colors.deepPurple,
+                    backgroundColor: AppColors.primary,
                   ),
                   child: isSubmitting
                       ? const SizedBox(

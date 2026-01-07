@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-
-import 'package:student_app/auth_helper.dart';
+import '../api_service.dart';
 
 class StudentAlertPage extends StatefulWidget {
   const StudentAlertPage({super.key});
@@ -27,12 +26,13 @@ class _StudentAlertPageState extends State<StudentAlertPage> {
     super.initState();
     fetchStudents();
   }
-@override
-void dispose() {
-  searchController.dispose();
-  descriptionController.dispose();
-  super.dispose();
-}
+
+  @override
+  void dispose() {
+    searchController.dispose();
+    descriptionController.dispose();
+    super.dispose();
+  }
 
   Future<void> fetchStudents() async {
     if (!mounted) return;
@@ -40,10 +40,11 @@ void dispose() {
     setState(() => isLoading = true);
 
     try {
-      final res = await AuthHelper.post(
-        context,
-        "https://school.edusathi.in/api/teacher/student/list",
-      );
+   final res = await ApiService.post(
+  context,
+  "/teacher/student/list",
+);
+
 
       // 🔐 AuthHelper handles 401 + logout
       if (res == null) return;
@@ -142,11 +143,11 @@ void dispose() {
       debugPrint("📤 ALERT BODY: $body");
 
       // 🔐 SAFE API CALL (same pattern as dashboard)
-      final res = await AuthHelper.post(
-        context,
-        "https://school.edusathi.in/api/teacher/student/alert",
-        body: body,
-      );
+    final res = await ApiService.post(
+  context,
+  "/teacher/student/alert",
+  body: body,
+);
 
       // ⚠️ AuthHelper already handles 401 + logout
       if (res == null) return;
@@ -191,7 +192,7 @@ void dispose() {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Student Alert"),
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
       ),
 
@@ -298,7 +299,7 @@ void dispose() {
                     width: double.infinity,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.deepPurple,
+                        backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.all(14),
                       ),

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:student_app/auth_helper.dart';
+import 'package:student_app/api_service.dart';
+
 
 class TeacherTimeTablePage extends StatefulWidget {
   const TeacherTimeTablePage({super.key});
@@ -23,7 +24,7 @@ class _TeacherTimeTablePageState extends State<TeacherTimeTablePage> {
   List<dynamic> periods = [];
   bool isLoading = true;
 
-  final String apiUrl = 'https://school.edusathi.in/api/teacher/timetable';
+  
 
   @override
   void initState() {
@@ -39,9 +40,9 @@ class _TeacherTimeTablePageState extends State<TeacherTimeTablePage> {
   debugPrint("🟡 fetchTimeTableForDay START | Day: $dayCode");
 
   try {
-    final response = await AuthHelper.post(
+    final response = await ApiService.post(
       context,
-      apiUrl,
+      '/teacher/timetable',
       body: {'Day': dayCode},
     );
 

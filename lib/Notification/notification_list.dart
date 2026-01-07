@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:student_app/api_service.dart';
+
 import 'package:student_app/complaint/complaint_detail_page.dart';
 import 'package:student_app/dashboard/dashboard_screen.dart';
 import 'package:student_app/Attendance_UI/stu_attendance_page.dart';
@@ -24,49 +24,43 @@ class _NotificationListPageState extends State<NotificationListPage> {
     fetchNotifications();
   }
 
-  Future<void> fetchNotifications() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('auth_token') ?? '';
+Future<void> fetchNotifications() async {
+  try {
+    final response = await ApiService.post(
+      context,
+      "/student/notifications",
+    );
 
-      final url = Uri.parse(
-        "https://school.edusathi.in/api/student/notifications",
-      );
-      final headers = {
-        'Accept': 'application/json',
-        'Authorization': 'Bearer $token',
-      };
+    // 🔐 ApiService already handles logout + token
+    if (response == null) {
+      setState(() => isLoading = false);
+      return;
+    }
 
-      print("🔑 Token: $token");
+    debugPrint("📥 Status: ${response.statusCode}");
+    debugPrint("📥 Body: ${response.body}");
 
-      final response = await http.post(url, headers: headers);
-      print("📥 Status: ${response.statusCode}");
-      print("📥 Body: ${response.body}");
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['status'] == true && data['data'] != null) {
-          setState(() {
-            notifications = data['data'];
-            isLoading = false;
-          });
-        } else {
-          setState(() {
-            isLoading = false;
-          });
-        }
-      } else {
+      if (data['status'] == true && data['data'] != null) {
         setState(() {
+          notifications = List.from(data['data']);
           isLoading = false;
         });
+      } else {
+        setState(() => isLoading = false);
       }
-    } catch (e) {
-      print("🚨 Error fetching notifications: $e");
-      setState(() {
-        isLoading = false;
-      });
+    } else {
+      setState(() => isLoading = false);
+    }
+  } catch (e) {
+    debugPrint("🚨 Notification error: $e");
+    if (mounted) {
+      setState(() => isLoading = false);
     }
   }
+}
 
   void handleNotificationTap(String type, int id, Map<String, dynamic> item) {
     if (type == "homework") {
@@ -125,7 +119,7 @@ class _NotificationListPageState extends State<NotificationListPage> {
           "Notifications",
           style: TextStyle(color: Colors.white),
         ),
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: AppColors.primary,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
       ),

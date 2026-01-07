@@ -13,19 +13,21 @@ dependencies:
   url_launcher: ^6.3.1
   pie_chart: ^5.4.0
   http: ^1.4.0
-  flutter_secure_storage: ^9.0.0
+  flutter_secure_storage: ^10.0.0
   shared_preferences: ^2.5.3
   intl: ^0.20.2
-  permission_handler: ^12.0.0
   path_provider: ^2.1.5
   open_file: ^3.5.10
+  
+
+
 
   # Firebase (iOS requires iOS 13+)
   firebase_core: ^3.15.1
   firebase_messaging: ^15.2.9
   flutter_local_notifications: ^19.3.0
 
-  file_picker: ^10.2.0
+  image_picker: ^1.2.1
   dio: ^5.8.0+1
   device_info_plus: ^11.5.0
   flutter_html: ^3.0.0

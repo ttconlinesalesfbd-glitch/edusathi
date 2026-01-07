@@ -1,7 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
@@ -14,12 +12,11 @@ import 'package:student_app/Exam/stu_result.dart';
 import 'package:student_app/Attendance_UI/attendance_pie_chart.dart';
 import 'package:student_app/Notification/notification_list.dart';
 import 'package:student_app/connect_teacher/connect_with_us.dart';
-// import 'package:student_app/connect_teacher/student_chat.dart';
 import 'package:student_app/dashboard/calendar.dart';
 import 'package:student_app/homework/homework_model.dart';
 import 'package:student_app/homework/homework_page.dart';
 import 'package:student_app/dashboard/timetable_page.dart';
-import 'package:student_app/login_page.dart';
+import 'package:student_app/main.dart';
 import 'package:student_app/payment/fee_details_page.dart';
 import 'package:student_app/payment/payment_page.dart';
 import 'package:student_app/profile_page.dart';
@@ -30,6 +27,7 @@ import 'package:student_app/syllabus/syllabus.dart';
 import 'package:student_app/Attendance_UI/attendnce_box.dart';
 import 'package:student_app/Attendance_UI/stu_attendance_report.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:student_app/api_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -37,15 +35,14 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
   bool isLoading = true;
-
+  bool isRefreshing = false;
   String studentName = '';
   String studentPhoto = '';
   String schoolName = '';
   String studentClass = '';
   String studentsection = '';
-
   int dues = 0;
   int payments = 0;
   String lastPaymentDate = '';
@@ -56,44 +53,47 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<dynamic> notices = [];
   List<dynamic> events = [];
   List<dynamic> siblings = [];
-  final FlutterSecureStorage secureStorage = const FlutterSecureStorage(
-    aOptions: AndroidOptions(encryptedSharedPreferences: true),
-    iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
-  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    routeObserver.subscribe(this, ModalRoute.of(context)! as PageRoute);
+  }
+
+  @override
+  void didPopNext() {
+    // jab kisi page se BACK aake dashboard dikhe
+    _refreshDashboard();
+  }
+
+  @override
+  void dispose() {
+    routeObserver.unsubscribe(this);
+    super.dispose();
+  }
 
   @override
   void initState() {
     super.initState();
-    initData();
+    _refreshDashboard(); // app open / login ke baad
   }
 
-  Future<void> initData() async {
+  Future<void> _refreshDashboard() async {
+    if (!mounted) return;
+
+    if (!isLoading) {
+      setState(() => isRefreshing = true);
+    }
+
     await loadProfileData();
     await fetchDashboardData(context);
+
+    if (!mounted) return;
+
     setState(() {
       isLoading = false;
+      isRefreshing = false;
     });
-  }
-
-  Future<String> getAuthToken() async {
-    final prefs = await SharedPreferences.getInstance();
-
-    // 1️⃣ Secure storage (PRIMARY)
-    final secureToken = await secureStorage.read(key: 'auth_token');
-    if (secureToken != null && secureToken.isNotEmpty) {
-      debugPrint("🔐 TOKEN FROM SECURE STORAGE");
-      return secureToken;
-    }
-
-    // 2️⃣ SharedPreferences fallback (ANDROID SAFETY)
-    final prefsToken = prefs.getString('auth_token') ?? '';
-    if (prefsToken.isNotEmpty) {
-      debugPrint("🔐 TOKEN FROM SHARED PREFS");
-      return prefsToken;
-    }
-
-    debugPrint("❌ NO TOKEN FOUND");
-    return '';
   }
 
   Future<void> loadProfileData() async {
@@ -105,38 +105,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
     studentsection = prefs.getString('section') ?? '';
   }
 
-  Future<void> fetchDashboardData(BuildContext context) async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = await getAuthToken();
-
-    debugPrint("📡 DASHBOARD TOKEN: $token");
-
-    if (token.isEmpty) {
-      debugPrint("🚨 EMPTY TOKEN → FORCE LOGOUT");
-
-      await secureStorage.delete(key: 'auth_token');
-      await prefs.clear();
-
-      if (!mounted) return;
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => LoginPage()),
-        (_) => false,
-      );
-      return;
+  Widget buildStudentImage(String? photo) {
+    if (photo == null || photo.isEmpty) {
+      return CircleAvatar(radius: 40, child: Icon(Icons.person));
     }
 
-    final response = await http.post(
-      Uri.parse('https://school.edusathi.in/api/student/dashboard'),
-      headers: {'Authorization': 'Bearer $token', 'Accept': 'application/json'},
-    );
+    return Image.network(photo, width: 80, height: 80, fit: BoxFit.cover);
+  }
+
+  Future<void> fetchDashboardData(BuildContext context) async {
+    final response = await ApiService.post(context, "/student/dashboard");
+
+    if (response == null) return;
 
     debugPrint("🔵 DASHBOARD STATUS: ${response.statusCode}");
     debugPrint("🔵 DASHBOARD BODY: ${response.body}");
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-
+      debugPrint("📢 RAW NOTICES: ${data['notices']}");
       dues = data['dues'] ?? 0;
       payments = int.tryParse(data['payments'].toString()) ?? 0;
 
@@ -169,20 +156,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
       return;
     }
-
-    if (response.statusCode == 401) {
-      debugPrint("🚫 DASHBOARD 401 → SESSION EXPIRED");
-
-      await secureStorage.delete(key: 'auth_token');
-      await prefs.clear();
-
-      if (!mounted) return;
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => LoginPage()),
-        (_) => false,
-      );
-    }
   }
 
   void _showSiblingPopup(BuildContext context) {
@@ -209,7 +182,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Row(
           children: [
-            Icon(Icons.people, color: Colors.blue),
+            Icon(Icons.people, color: AppColors.info),
             SizedBox(width: 8),
             Text(
               'Switch Sibling',
@@ -245,8 +218,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 elevation: 2,
                 child: ListTile(
                   leading: CircleAvatar(
-                    backgroundImage: NetworkImage(photoUrl),
+                    radius: 22,
+                    backgroundColor: Colors.grey.shade200,
+                    child: ClipOval(
+                      child: Image.network(
+                        photoUrl,
+                        width: 44,
+                        height: 44,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Icon(
+                            Icons.person,
+                            size: 26,
+                            color: Colors.grey,
+                          );
+                        },
+                      ),
+                    ),
                   ),
+
                   title: Text(
                     name,
                     style: const TextStyle(fontWeight: FontWeight.w600),
@@ -292,7 +282,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               icon: const Icon(Icons.check_circle, size: 18),
                               label: const Text('Yes, Switch'),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue,
+                                backgroundColor: AppColors.info,
                                 foregroundColor: Colors.white,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
@@ -322,90 +312,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _shiftLogin(String studentId) async {
     if (!mounted) return;
     try {
-      // Step 1: Get SharedPreferences instance
-      final prefs = await SharedPreferences.getInstance();
-
-      // Step 2: Get saved token before making request
-      final token = await getAuthToken();
-
-      print('🔑 Using Token: $token');
-
-      // Step 3: Prepare API request
-      final url = Uri.parse(
-        'https://school.edusathi.in/api/student/shift_login',
+      final response = await ApiService.post(
+        context,
+        "/student/shift_login",
+        body: {'id': studentId},
       );
-      final headers = {
-        'Accept': 'application/json',
-        'Authorization': 'Bearer $token',
-      };
-      final body = {'id': studentId};
-      print('📤 Request Body: $body');
 
-      // Step 4: Send request
-      final response = await http.post(url, headers: headers, body: body);
+      if (response == null) return;
 
-      print('📥 Response Status: ${response.statusCode}');
-      print('📥 Response Body: ${response.body}');
+      final data = jsonDecode(response.body);
 
-      // Step 5: Handle non-200 responses
-      if (response.statusCode != 200) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Server error (${response.statusCode})')),
-        );
-        return;
-      }
-
-      // Step 6: Decode JSON
-      dynamic data;
-      try {
-        data = json.decode(response.body);
-      } catch (e) {
-        print('❌ Failed to decode response as JSON');
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Invalid server response')),
-        );
-        return;
-      }
-
-      // Step 7: Handle response data
       if (data['status'] == true) {
-        print('✅ Shift Login Successful for ID: $studentId');
-
-        await secureStorage.write(key: 'auth_token', value: data['token']);
-        await prefs.setString('auth_token', data['token']);
-
-        await prefs.setString('user_type', data['user_type'] ?? '');
-        await prefs.setString(
-          'student_name',
-          data['profile']['student_name'] ?? '',
-        );
-        await prefs.setString(
-          'class_name',
-          data['profile']['class_name'] ?? '',
-        );
-        await prefs.setString('section', data['profile']['section'] ?? '');
-        await prefs.setString(
-          'school_name',
-          data['profile']['school_name'] ?? '',
-        );
-        await prefs.setString(
-          'student_photo',
-          data['profile']['student_photo'] ?? '',
-        );
-
-        print('💾 New Token Saved: ${data['token']}');
+        await ApiService.saveSession(data);
 
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Switched student successfully')),
-        );
 
-        // Navigate fresh to dashboard/home
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => DashboardScreen()),
+          MaterialPageRoute(builder: (_) => const DashboardScreen()),
         );
       } else {
         print('❌ Shift login failed: ${data['message']}');
@@ -466,117 +390,149 @@ class _DashboardScreenState extends State<DashboardScreen> {
             GestureDetector(
               onTap: () => _showSiblingPopup(context),
               child: CircleAvatar(
-                backgroundImage: studentPhoto.isNotEmpty
-                    ? NetworkImage(studentPhoto)
-                    : const AssetImage('assets/images/default_avatar.png')
-                          as ImageProvider,
                 radius: 15,
+                backgroundColor: Colors.grey.shade200,
+                child: ClipOval(
+                  child: Image.network(
+                    studentPhoto,
+                    width: 30,
+                    height: 30,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Image.asset(
+                        AppAssets.defaultAvatar,
+                        width: 30,
+                        height: 30,
+                        fit: BoxFit.cover,
+                      );
+                    },
+                  ),
+                ),
               ),
             ),
             const SizedBox(width: 5),
           ],
         ),
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: AppColors.primary,
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      GestureDetector(
-                        child: DashboardCard(
-                          title: 'Fee Amount',
-                          value: dues.toString(),
-                          borderColor: Colors.red,
-                          backgroundColor: Colors.red.shade50,
-                          textColor: Colors.red,
+          : Column(
+              children: [
+                if (isRefreshing) const LinearProgressIndicator(minHeight: 3),
+
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            GestureDetector(
+                              child: DashboardCard(
+                                title: 'Fee Amount',
+                                value: dues.toString(),
+                                borderColor: AppColors.danger,
+                                backgroundColor: AppColors.danger.shade50,
+                                textColor: AppColors.danger,
+                              ),
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => FeeDetailsPage(),
+                                ),
+                              ),
+                            ),
+                            GestureDetector(
+                              child: DashboardCard(
+                                title: 'Last Pay',
+                                value: payments.toString(),
+                                borderColor: AppColors.success,
+                                backgroundColor: AppColors.success.shade50,
+                                textColor: AppColors.success,
+                                date: lastPaymentDate,
+                              ),
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => PaymentPage(),
+                                ),
+                              ),
+                            ),
+                            GestureDetector(
+                              child: DashboardCard(
+                                title: 'Subjects',
+                                value: subjects.toString(),
+                                borderColor: AppColors.info,
+                                backgroundColor: AppColors.info.shade50,
+                                textColor: AppColors.info,
+                              ),
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => SubjectsPage(),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => FeeDetailsPage()),
+                        const SizedBox(height: 30),
+                        GestureDetector(
+                          child: AttendanceCard(
+                            title: "Today's Attendance",
+                            place: "School",
+                            status: status,
+                            icon: Icons.school,
+                          ),
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => AttendanceAnalyticsPage(),
+                            ),
+                          ),
                         ),
-                      ),
-                      GestureDetector(
-                        child: DashboardCard(
-                          title: 'Last Pay',
-                          value: payments.toString(),
-                          borderColor: Colors.green,
-                          backgroundColor: Colors.green.shade50,
-                          textColor: Colors.green,
-                          date: lastPaymentDate,
+                        const SizedBox(height: 10),
+                        Container(
+                          height: 225,
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: AppColors.primary.shade100,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.grey.shade200,
+                                blurRadius: 6,
+                              ),
+                            ],
+                          ),
+                          child: AttendancePieChart(
+                            present: attendance['present'] ?? 0,
+                            absent: attendance['absent'] ?? 0,
+                            leave: attendance['leave'] ?? 0,
+                            halfDay: attendance['half_day'] ?? 0,
+                            workingDays: attendance['working_days'] ?? 0,
+                          ),
                         ),
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => PaymentPage()),
+                        const SizedBox(height: 10),
+                        buildRecentHomeworks(context, homeworks),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          height: 350,
+                          child: NoticesEventsToggle(
+                            initialNotices: notices,
+                            initialEvents: events,
+                          ),
                         ),
-                      ),
-                      GestureDetector(
-                        child: DashboardCard(
-                          title: 'Subjects',
-                          value: subjects.toString(),
-                          borderColor: Colors.blue,
-                          backgroundColor: Colors.blue.shade50,
-                          textColor: Colors.blue,
-                        ),
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => SubjectsPage()),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 30),
-                  GestureDetector(
-                    child: AttendanceCard(
-                      title: "Today's Attendance",
-                      place: "School",
-                      status: status,
-                      icon: Icons.school,
-                    ),
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => AttendanceAnalyticsPage(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Container(
-                    height: 225,
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.deepPurple.shade100),
-                      boxShadow: [
-                        BoxShadow(color: Colors.grey.shade200, blurRadius: 6),
                       ],
                     ),
-                    child: AttendancePieChart(
-                      present: attendance['present'] ?? 0,
-                      absent: attendance['absent'] ?? 0,
-                      leave: attendance['leave'] ?? 0,
-                      halfDay: attendance['half_day'] ?? 0,
-                      workingDays: attendance['working_days'] ?? 0,
-                    ),
                   ),
-                  const SizedBox(height: 10),
-                  buildRecentHomeworks(context, homeworks),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    height: 350,
-                    child: NoticesEventsToggle(
-                      initialNotices: notices,
-                      initialEvents: events,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
     );
   }
@@ -655,7 +611,6 @@ class DashboardCard extends StatelessWidget {
 class InfoCard extends StatelessWidget {
   final Map<String, dynamic> item;
   final bool isEvent;
-  final String baseUrl = 'https://school.edusathi.in/';
 
   const InfoCard({super.key, required this.item, required this.isEvent});
 
@@ -669,27 +624,55 @@ class InfoCard extends StatelessWidget {
   }
 
   Future<void> _downloadFile(BuildContext context, String url) async {
-    try {
-      final response = await http.get(Uri.parse(url));
-      if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
-        throw Exception(
-          "Failed to download file. Status: ${response.statusCode}",
-        );
-      }
-      final dir = await getApplicationDocumentsDirectory();
-      final fileName = url.split('/').last;
-      final file = File('${dir.path}/$fileName');
-      await file.writeAsBytes(response.bodyBytes, flush: true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Downloaded and saved to: ${dir.path}/$fileName"),
-        ),
-      );
-      await OpenFile.open(file.path);
-    } catch (e) {
+    if (url.isEmpty) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text("Download error: $e")));
+      ).showSnackBar(const SnackBar(content: Text("Attachment not available")));
+      return;
+    }
+
+    try {
+      final fileName = url.split('/').last;
+      late File file;
+
+      // 🔽 DIRECT HTTP (S3 public file)
+      final response = await http.get(Uri.parse(url));
+
+      if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
+        throw Exception("Download failed");
+      }
+
+      // ================= ANDROID =================
+      if (Platform.isAndroid) {
+        final downloadsDir = Directory('/storage/emulated/0/Download');
+        file = File('${downloadsDir.path}/$fileName');
+
+        await file.writeAsBytes(response.bodyBytes, flush: true);
+
+        // ✅ PREVIEW
+        await OpenFile.open(file.path);
+
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("📥 Downloaded & Preview opened")),
+        );
+      }
+
+      // ================= iOS =================
+      if (Platform.isIOS) {
+        final dir = await getApplicationDocumentsDirectory();
+        file = File('${dir.path}/$fileName');
+
+        await file.writeAsBytes(response.bodyBytes, flush: true);
+
+        // ✅ PREVIEW
+        await OpenFile.open(file.path);
+      }
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("❌ Download failed")));
     }
   }
 
@@ -713,12 +696,16 @@ class InfoCard extends StatelessWidget {
         ? Colors.orange.shade50
         : Colors.indigo.shade50;
 
-    final String? attachmentPath = item["Attachment"];
+    final String? attachment = item["Attachment"];
+    final String schoolId = item["SchoolId"]?.toString() ?? '';
     final bool hasAttachment =
-        attachmentPath != null && attachmentPath.isNotEmpty;
+        attachment != null && attachment.isNotEmpty && schoolId.isNotEmpty;
+    final String folder = isEvent ? 'event' : 'notice';
     final String fullAttachmentUrl = hasAttachment
-        ? baseUrl + attachmentPath
+        ? ApiService.attachmentUrl(schoolId, folder, attachment)
         : '';
+
+    debugPrint("📎 NOTICE ATTACHMENT URL: $fullAttachmentUrl");
 
     return Card(
       elevation: 3,
@@ -842,16 +829,16 @@ class NoticesEventsToggle extends StatelessWidget {
               decoration: BoxDecoration(
                 color: Colors.grey[200],
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.deepPurple, width: 1),
+                border: Border.all(color: AppColors.primary, width: 1),
               ),
               child: TabBar(
                 indicatorSize: TabBarIndicatorSize.tab,
                 indicator: BoxDecoration(
                   borderRadius: BorderRadius.circular(20),
-                  color: Colors.deepPurple,
+                  color: AppColors.primary,
                 ),
                 labelColor: Colors.white,
-                unselectedLabelColor: Colors.deepPurple,
+                unselectedLabelColor: AppColors.primary,
                 splashBorderRadius: BorderRadius.circular(20),
                 tabs: const [
                   Tab(text: 'Notices'),
@@ -888,17 +875,6 @@ class LeftSidebarMenu extends StatelessWidget {
     required this.studentClass,
     required this.studentsection,
   });
-  Future<String> _getTokenForLogout() async {
-    final prefs = await SharedPreferences.getInstance();
-    final storage = const FlutterSecureStorage();
-
-    final secureToken = await storage.read(key: 'auth_token');
-    if (secureToken != null && secureToken.isNotEmpty) {
-      return secureToken;
-    }
-
-    return prefs.getString('auth_token') ?? '';
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -908,18 +884,32 @@ class LeftSidebarMenu extends StatelessWidget {
         child: ListView(
           children: [
             Container(
-              color: Colors.deepPurple,
+              color: AppColors.primary,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               height: 120,
               child: Row(
                 children: [
                   CircleAvatar(
                     radius: 26,
-                    backgroundImage: studentPhoto.isNotEmpty
-                        ? NetworkImage(studentPhoto)
-                        : const AssetImage('assets/images/default_avatar.png')
-                              as ImageProvider,
+                    backgroundColor: Colors.grey.shade300,
+                    child: ClipOval(
+                      child: Image.network(
+                        studentPhoto,
+                        width: 52,
+                        height: 52,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Image.asset(
+                            AppAssets.defaultAvatar,
+                            width: 52,
+                            height: 52,
+                            fit: BoxFit.cover,
+                          );
+                        },
+                      ),
+                    ),
                   ),
+
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -1110,71 +1100,28 @@ class LeftSidebarMenu extends StatelessWidget {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.logout, color: Colors.red),
-              title: const Text('Logout', style: TextStyle(color: Colors.red)),
+              leading: const Icon(Icons.logout, color: AppColors.danger),
+              title: const Text(
+                'Logout',
+                style: TextStyle(color: AppColors.danger),
+              ),
               onTap: () {
                 showDialog(
                   context: context,
-                  builder: (dialogContext) => AlertDialog(
+                  builder: (_) => AlertDialog(
                     title: const Text("Logout"),
                     content: const Text("Are you sure you want to logout?"),
                     actions: [
                       TextButton(
-                        onPressed: () => Navigator.pop(dialogContext),
+                        onPressed: () => Navigator.pop(context),
                         child: const Text("Cancel"),
                       ),
                       TextButton(
-                        child: const Text("Logout"),
                         onPressed: () async {
-                          Navigator.pop(dialogContext); // close dialog
-
-                          final prefs = await SharedPreferences.getInstance();
-                          const storage = FlutterSecureStorage();
-                          final token = await _getTokenForLogout();
-
-                          debugPrint("🔐 LOGOUT TOKEN: $token");
-
-                          try {
-                            final response = await http.post(
-                              Uri.parse(
-                                'https://school.edusathi.in/api/logout',
-                              ),
-                              headers: {
-                                'Authorization': 'Bearer $token',
-                                'Accept': 'application/json',
-                              },
-                            );
-
-                            debugPrint(
-                              "🔐 Logout Status: ${response.statusCode}",
-                            );
-                            debugPrint("🔐 Logout Body: ${response.body}");
-
-                            // ✅ ALWAYS clear local session
-                            await storage.delete(key: 'auth_token');
-                            await prefs.clear();
-
-                            if (!context.mounted) return;
-
-                            Navigator.pushAndRemoveUntil(
-                              context,
-                              MaterialPageRoute(builder: (_) => LoginPage()),
-                              (_) => false,
-                            );
-                          } catch (e) {
-                            debugPrint("🚨 LOGOUT ERROR: $e");
-
-                            await storage.delete(key: 'auth_token');
-                            await prefs.clear();
-
-                            if (!context.mounted) return;
-                            Navigator.pushAndRemoveUntil(
-                              context,
-                              MaterialPageRoute(builder: (_) => LoginPage()),
-                              (_) => false,
-                            );
-                          }
+                          Navigator.pop(context);
+                          await ApiService.post(context, "/logout");
                         },
+                        child: const Text("Logout"),
                       ),
                     ],
                   ),

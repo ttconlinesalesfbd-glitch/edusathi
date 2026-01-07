@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
-import 'package:student_app/auth_helper.dart';
+import 'package:student_app/api_service.dart';
+
 
 class SyllabusPage extends StatefulWidget {
   const SyllabusPage({super.key});
@@ -11,8 +12,8 @@ class SyllabusPage extends StatefulWidget {
 }
 
 class _SyllabusPageState extends State<SyllabusPage> {
-  final String getExamsUrl = 'https://school.edusathi.in/api/get_exam';
-  final String getSyllabusUrl = 'https://school.edusathi.in/api/syllabus';
+ 
+  
 
   List<dynamic> exams = [];
   Map<String, dynamic>? selectedExam;
@@ -34,9 +35,9 @@ class _SyllabusPageState extends State<SyllabusPage> {
     setState(() => isLoadingExams = true);
 
     try {
-      final response = await AuthHelper.post(
+      final response = await ApiService.post(
         context,
-        'https://school.edusathi.in/api/get_exam',
+        '/get_exam',
       );
 
       // 🔐 token expired → auto logout already handled
@@ -86,9 +87,9 @@ class _SyllabusPageState extends State<SyllabusPage> {
     setState(() => isLoadingSyllabus = true);
 
     try {
-      final response = await AuthHelper.post(
+      final response = await ApiService.post(
         context,
-        getSyllabusUrl,
+        "/syllabus",
         body: {'ExamId': examId},
       );
 
@@ -139,7 +140,7 @@ class _SyllabusPageState extends State<SyllabusPage> {
       appBar: AppBar(
         title: const Text("Syllabus", style: TextStyle(color: Colors.white)),
         iconTheme: const IconThemeData(color: Colors.white),
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: AppColors.primary,
       ),
       body: Column(
         children: [
@@ -155,7 +156,7 @@ class _SyllabusPageState extends State<SyllabusPage> {
   Widget _buildExamSelector() {
     if (isLoadingExams) {
       return const Center(
-        child: CircularProgressIndicator(color: Colors.deepPurple),
+        child: CircularProgressIndicator(color: AppColors.primary),
       );
     }
 
@@ -185,9 +186,9 @@ class _SyllabusPageState extends State<SyllabusPage> {
               margin: const EdgeInsets.symmetric(horizontal: 6),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
-                color: isSelected ? Colors.deepPurple : Colors.transparent,
+                color: isSelected ? AppColors.primary : Colors.transparent,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.deepPurple, width: 1.2),
+                border: Border.all(color: AppColors.primary, width: 1.2),
               ),
               child: Row(
                 children: [
@@ -217,7 +218,7 @@ class _SyllabusPageState extends State<SyllabusPage> {
     if (isLoadingSyllabus) {
       return const Expanded(
         child: Center(
-          child: CircularProgressIndicator(color: Colors.deepPurple),
+          child: CircularProgressIndicator(color: AppColors.primary),
         ),
       );
     }
@@ -253,7 +254,7 @@ class _SyllabusPageState extends State<SyllabusPage> {
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.deepPurple,
+                      color: AppColors.primary,
                     ),
                   ),
                   const SizedBox(height: 8),

@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:student_app/api_service.dart';
 
-import '../auth_helper.dart';
+
 
 class AssignSkillsPage extends StatefulWidget {
   const AssignSkillsPage({super.key});
@@ -46,9 +46,9 @@ class _AssignSkillsPageState extends State<AssignSkillsPage> {
   // ---------------- EXAMS ----------------
   Future<void> fetchExams() async {
     try {
-      final response = await AuthHelper.post(
+      final response = await ApiService.post(
         context,
-        "https://school.edusathi.in/api/get_exam",
+        "/get_exam",
       );
 
       if (response == null || !mounted) return;
@@ -68,119 +68,154 @@ class _AssignSkillsPageState extends State<AssignSkillsPage> {
   }
 
   // ---------------- SKILLS ----------------
-  Future<void> fetchSkills() async {
-    try {
-      final response = await ApiService.post('/get_skill');
-      if (response.statusCode == 200 && mounted) {
-        skills = List<Map<String, dynamic>>.from(jsonDecode(response.body));
-        setState(() {});
-      }
-    } catch (_) {}
+Future<void> fetchSkills() async {
+  try {
+    final response = await ApiService.post(
+      context,
+      "/get_skill",
+    );
+
+    // 🔐 token expired / server issue
+    if (response == null) return;
+
+    if (response.statusCode == 200 && mounted) {
+      skills = List<Map<String, dynamic>>.from(
+        jsonDecode(response.body),
+      );
+      setState(() {});
+    }
+  } catch (e) {
+    debugPrint("❌ FETCH SKILLS ERROR: $e");
   }
+}
+
 
   // ---------------- STUDENTS ----------------
-  Future<void> _fetchStudents() async {
-    if (selectedExam == null || selectedSkill == null) return;
+ Future<void> _fetchStudents() async {
+  if (selectedExam == null || selectedSkill == null) return;
 
-    setState(() {
-      isLoading = true;
-      showTable = false;
-    });
+  setState(() {
+    isLoading = true;
+    showTable = false;
+  });
 
-    try {
-      final resp = await ApiService.post(
-        '/teacher/skill',
-        body: {
-          "ExamId": int.parse(selectedExam!),
-          "SkillId": int.parse(selectedSkill!),
-        },
-      );
-
-      if (!mounted) return;
-
-      final data = jsonDecode(resp.body);
-
-      // dispose old controllers
-      for (final c in gradeControllers.values) {
-        c.dispose();
-      }
-      gradeControllers.clear();
-
-      if (data['skills'] != null) {
-        studentList = List<Map<String, dynamic>>.from(data['skills']).map((s) {
-          return {
-            "studentid": s['id'],
-            "name": s['StudentName'],
-            "father": s['FatherName'],
-            "roll": s['RollNo'],
-            "status": s['Status'],
-            "Grade": s['Grade'] ?? '',
-          };
-        }).toList();
-
-        filteredList = List.from(studentList);
-
-        for (var student in studentList) {
-          final id = student['studentid'].toString();
-          gradeControllers[id] = TextEditingController(
-            text: student['Grade'] ?? '',
-          );
-        }
-
-        setState(() => showTable = true);
-      }
-
-      if (data['msg'] != null && data['msg'].toString().trim().isNotEmpty) {
-        _alert(data['msg']);
-      }
-    } catch (e) {
-      _alert("Error: $e");
-    } finally {
-      if (mounted) setState(() => isLoading = false);
-    }
-  }
-
-  // ---------------- SUBMIT ----------------
-  Future<void> _submitSkills() async {
-    setState(() => isSubmitting = true);
-
-    try {
-      for (var s in studentList) {
-        final id = s['studentid'].toString();
-        final grade = gradeControllers[id]?.text.trim().toUpperCase() ?? '';
-
-        if (grade.isEmpty) {
-          _alert("Please enter Grade for all students.");
-          setState(() => isSubmitting = false);
-          return;
-        }
-
-        s['Grade'] = grade;
-      }
-
-      final payload = {
+  try {
+    final resp = await ApiService.post(
+      context,
+      "/teacher/skill",
+      body: {
         "ExamId": int.parse(selectedExam!),
         "SkillId": int.parse(selectedSkill!),
-        "skills": studentList
-            .map((s) => {"StudentId": s['studentid'], "Grade": s['Grade']})
-            .toList(),
-      };
+      },
+    );
 
-      final response = await ApiService.post(
-        '/teacher/skill/store',
-        body: payload,
-      );
+    // 🔐 token expire / server timeout
+    if (resp == null) return;
 
-      if (!mounted) return;
+    if (!mounted) return;
 
-      final data = jsonDecode(response.body);
-      _alert(data['message'] ?? 'Skills updated');
-    } catch (e) {
-      _alert("Error: $e");
-    } finally {
-      if (mounted) setState(() => isSubmitting = false);
+    final data = jsonDecode(resp.body);
+
+    // 🔁 Dispose old controllers
+    for (final c in gradeControllers.values) {
+      c.dispose();
+    }
+    gradeControllers.clear();
+
+    if (data['skills'] != null) {
+      studentList =
+          List<Map<String, dynamic>>.from(data['skills']).map((s) {
+        return {
+          "studentid": s['id'],
+          "name": s['StudentName'],
+          "father": s['FatherName'],
+          "roll": s['RollNo'],
+          "status": s['Status'],
+          "Grade": s['Grade'] ?? '',
+        };
+      }).toList();
+
+      filteredList = List.from(studentList);
+
+      for (final student in studentList) {
+        final id = student['studentid'].toString();
+        gradeControllers[id] = TextEditingController(
+          text: student['Grade'] ?? '',
+        );
+      }
+
+      setState(() => showTable = true);
+    }
+
+    if (data['msg'] != null && data['msg'].toString().trim().isNotEmpty) {
+      _alert(data['msg']);
+    }
+  } catch (e) {
+    _alert("❌ Error: $e");
+  } finally {
+    if (mounted) {
+      setState(() => isLoading = false);
     }
   }
+}
+
+  // ---------------- SUBMIT ----------------
+ Future<void> _submitSkills() async {
+  if (!mounted) return;
+
+  setState(() => isSubmitting = true);
+
+  try {
+    // 🔎 Validation
+    for (final s in studentList) {
+      final id = s['studentid'].toString();
+      final grade =
+          gradeControllers[id]?.text.trim().toUpperCase() ?? '';
+
+      if (grade.isEmpty) {
+        _alert("Please enter Grade for all students.");
+        setState(() => isSubmitting = false);
+        return;
+      }
+
+      s['Grade'] = grade;
+    }
+
+    final payload = {
+      "ExamId": int.parse(selectedExam!),
+      "SkillId": int.parse(selectedSkill!),
+      "skills": studentList
+          .map(
+            (s) => {
+              "StudentId": s['studentid'],
+              "Grade": s['Grade'],
+            },
+          )
+          .toList(),
+    };
+
+    final response = await ApiService.post(
+      context,
+      "/teacher/skill/store",
+      body: payload,
+    );
+
+    // 🔐 token expired / timeout handled
+    if (response == null) return;
+
+    if (!mounted) return;
+
+    final data = jsonDecode(response.body);
+
+    _alert(data['message'] ?? 'Skills updated successfully');
+  } catch (e) {
+    _alert("❌ Error: $e");
+  } finally {
+    if (mounted) {
+      setState(() => isSubmitting = false);
+    }
+  }
+}
 
   void _alert(String msg) {
     showDialog(
@@ -203,7 +238,7 @@ class _AssignSkillsPageState extends State<AssignSkillsPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Assign Skills'),
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
       ),
       body: isLoading
@@ -267,7 +302,7 @@ class _AssignSkillsPageState extends State<AssignSkillsPage> {
                                 ? null
                                 : _fetchStudents,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.deepPurple,
+                              backgroundColor: AppColors.primary,
                             ),
                             child: const Text(
                               'Search',
@@ -391,7 +426,7 @@ class _AssignSkillsPageState extends State<AssignSkillsPage> {
                             child: ElevatedButton(
                               onPressed: _submitSkills,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.deepPurple,
+                                backgroundColor: AppColors.primary,
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 14,
                                 ),

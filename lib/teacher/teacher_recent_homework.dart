@@ -1,12 +1,12 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:permission_handler/permission_handler.dart';
-import 'package:device_info_plus/device_info_plus.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:student_app/api_service.dart';
 import 'package:student_app/teacher/teacher_homework_detail_page.dart';
 import 'package:student_app/teacher/teacher_homework_page.dart';
+// import 'package:file_picker/file_picker.dart';
 
 class TeacherRecentHomeworks extends StatelessWidget {
   final List<Map<String, dynamic>> homeworks;
@@ -41,14 +41,16 @@ class TeacherRecentHomeworks extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Colors.deepPurple,
+                  color: AppColors.primary,
                 ),
               ),
               TextButton(
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const TeacherHomeworkPage()),
+                    MaterialPageRoute(
+                      builder: (_) => const TeacherHomeworkPage(),
+                    ),
                   );
                 },
                 child: const Text("View All"),
@@ -65,8 +67,7 @@ class TeacherRecentHomeworks extends StatelessWidget {
                     final hw = limitedHomeworks[index];
 
                     return ListTile(
-                      leading:
-                          const Icon(Icons.book, color: Colors.deepPurple),
+                      leading: const Icon(Icons.book, color: AppColors.primary),
                       title: Text(hw['HomeworkTitle'] ?? ''),
                       subtitle: Text(
                         "Submission: ${formatDate(hw['SubmissionDate'])}",
@@ -75,22 +76,33 @@ class TeacherRecentHomeworks extends StatelessWidget {
                           ? IconButton(
                               icon: const Icon(
                                 Icons.download,
-                                color: Colors.deepPurple,
+                                color: AppColors.primary,
                               ),
-                              onPressed: () async {
-                                await _requestStoragePermission();
-
+                              onPressed: () {
                                 final attachment = hw['Attachment'];
-                                final fileUrl =
-                                    'https://school.edusathi.in/$attachment';
-                                final fileName =
-                                    Uri.parse(fileUrl).pathSegments.last;
 
-                                await _downloadFile(
-                                  context,
-                                  fileUrl,
-                                  fileName,
+                                if (attachment == null ||
+                                    attachment.toString().isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text("Attachment not available"),
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                // ✅ Teacher homework FINAL S3 URL
+                                final String fileUrl =
+                                    attachment.toString().startsWith('http')
+                                    ? attachment.toString()
+                                    : 'https://s3.ap-south-1.amazonaws.com/'
+                                          'school.edusathi.in/homeworks/$attachment';
+
+                                debugPrint(
+                                  "📎 TEACHER HW DOWNLOAD URL: $fileUrl",
                                 );
+
+                                _downloadFile(context, fileUrl);
                               },
                             )
                           : null,
@@ -111,66 +123,70 @@ class TeacherRecentHomeworks extends StatelessWidget {
     );
   }
 
-  // ---------------- PERMISSION (ANDROID ONLY) ----------------
-  static Future<void> _requestStoragePermission() async {
-    if (!Platform.isAndroid) return;
-
-    final androidInfo = await DeviceInfoPlugin().androidInfo;
-    final sdkInt = androidInfo.version.sdkInt;
-
-    if (sdkInt >= 33) {
-      await [
-        Permission.photos,
-        Permission.videos,
-        Permission.audio,
-      ].request();
-    } else {
-      await Permission.storage.request();
-    }
-  }
-
   // ---------------- SAFE FILE DOWNLOAD ----------------
-  static Future<void> _downloadFile(
-    BuildContext context,
-    String url,
-    String fileName,
-  ) async {
-    try {
-      final response = await http.get(Uri.parse(url));
+  Future<void> _downloadFile(BuildContext context, String url) async {
+    if (url.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Attachment not available")));
+      return;
+    }
 
+    try {
+      debugPrint("⬇️ Downloading: $url");
+
+      final response = await http.get(Uri.parse(url));
       if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
-        throw Exception("File download failed");
+        throw Exception("Failed to download file");
       }
 
-      // ✅ iOS + Android safe directory
-      final dir = await getApplicationDocumentsDirectory();
-      final filePath = '${dir.path}/$fileName';
+      final fileName = Uri.parse(url).pathSegments.last;
 
-      final file = File(filePath);
-      await file.writeAsBytes(response.bodyBytes, flush: true);
+      // ================= ANDROID =================
+      if (Platform.isAndroid) {
+        // ✅ Real user-visible Downloads folder
+        final downloadsDir = Directory('/storage/emulated/0/Download');
+        final filePath = '${downloadsDir.path}/$fileName';
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("📥 Downloaded to $filePath")),
-      );
+        final file = File(filePath);
+        await file.writeAsBytes(response.bodyBytes, flush: true);
 
-      await OpenFile.open(filePath);
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("File saved to Downloads folder")),
+        );
+      }
+
+      // ================= iOS =================
+      if (Platform.isIOS) {
+        final dir = await getApplicationDocumentsDirectory();
+        final filePath = '${dir.path}/$fileName';
+
+        final file = File(filePath);
+        await file.writeAsBytes(response.bodyBytes, flush: true);
+
+        if (!context.mounted) return;
+        await OpenFile.open(filePath); // Files app
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("❌ Download failed")),
-      );
+      debugPrint("❌ Teacher HW download error: $e");
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Download failed")));
     }
   }
-}
 
-// ---------------- DATE FORMAT ----------------
-String formatDate(String? date) {
-  if (date == null || date.isEmpty) return "";
-  try {
-    final parsedDate = DateTime.parse(date);
-    return "${parsedDate.day.toString().padLeft(2, '0')}-"
-        "${parsedDate.month.toString().padLeft(2, '0')}-"
-        "${parsedDate.year}";
-  } catch (_) {
-    return date;
+  // ---------------- DATE FORMAT ----------------
+  String formatDate(String? date) {
+    if (date == null || date.isEmpty) return "";
+    try {
+      final parsedDate = DateTime.parse(date);
+      return "${parsedDate.day.toString().padLeft(2, '0')}-"
+          "${parsedDate.month.toString().padLeft(2, '0')}-"
+          "${parsedDate.year}";
+    } catch (_) {
+      return date;
+    }
   }
 }

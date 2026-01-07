@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:student_app/auth_helper.dart';
+import 'package:student_app/api_service.dart';
 
 class StudentResultPage extends StatefulWidget {
   const StudentResultPage({Key? key}) : super(key: key);
@@ -31,9 +31,9 @@ class _StudentResultPageState extends State<StudentResultPage> {
     setState(() => isExamLoading = true);
 
     try {
-      final res = await AuthHelper.post(
+      final res = await ApiService.post(
         context,
-        'https://school.edusathi.in/api/get_exam',
+        '/get_exam',
       );
 
       if (res == null) return;
@@ -77,9 +77,9 @@ class _StudentResultPageState extends State<StudentResultPage> {
     setState(() => isLoading = true);
 
     try {
-      final res = await AuthHelper.post(
+      final res = await ApiService.post(
         context,
-        'https://school.edusathi.in/api/teacher/result',
+        '/teacher/result',
         body: {'ExamId': selectedExamId},
       );
 
@@ -127,7 +127,7 @@ class _StudentResultPageState extends State<StudentResultPage> {
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: AppColors.primary,
         title: const Text(
           "Student Result",
           style: TextStyle(color: Colors.white),
@@ -144,7 +144,7 @@ class _StudentResultPageState extends State<StudentResultPage> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.deepPurple),
+                border: Border.all(color: AppColors.primary),
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
@@ -168,7 +168,7 @@ class _StudentResultPageState extends State<StudentResultPage> {
             const SizedBox(height: 10),
 
             if (isLoading)
-              const CircularProgressIndicator(color: Colors.deepPurple),
+              const CircularProgressIndicator(color: AppColors.primary),
 
             if (!isLoading && results.isNotEmpty)
               Expanded(

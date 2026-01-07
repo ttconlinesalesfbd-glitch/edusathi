@@ -52,7 +52,8 @@ class ViewHomeworksPage extends StatelessWidget {
                       onPressed: () {
                         String fileUrl = hw['Attachment'];
                         if (!fileUrl.startsWith('http')) {
-                          fileUrl = 'https://school.edusathi.in/$fileUrl';
+                          fileUrl =
+                              'https://s3.ap-south-1.amazonaws.com/school.edusathi.in/homeworks/$fileUrl';
                         }
                         downloadFile(context, fileUrl);
                       },
@@ -78,10 +79,7 @@ class ViewHomeworksPage extends StatelessWidget {
   // ============================
   // 📥 SAFE DOWNLOAD (iOS + ANDROID)
   // ============================
-  Future<void> downloadFile(
-    BuildContext context,
-    String fileUrl,
-  ) async {
+  Future<void> downloadFile(BuildContext context, String fileUrl) async {
     try {
       final response = await http.get(Uri.parse(fileUrl));
       if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
@@ -95,15 +93,15 @@ class ViewHomeworksPage extends StatelessWidget {
 
       await file.writeAsBytes(response.bodyBytes, flush: true);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Downloaded to ${file.path}")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Downloaded to ${file.path}")));
 
       await OpenFile.open(file.path);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Download error: $e")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Download error: $e")));
     }
   }
 }

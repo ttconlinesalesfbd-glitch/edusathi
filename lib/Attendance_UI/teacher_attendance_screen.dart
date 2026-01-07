@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:student_app/auth_helper.dart';
+import 'package:student_app/api_service.dart';
 
 class TeacherAttendanceScreen extends StatefulWidget {
   const TeacherAttendanceScreen({super.key});
@@ -72,10 +72,9 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
 
     try {
       final formattedMonth = DateFormat('yyyy-MM').format(_focusedMonth);
-
-      final res = await AuthHelper.post(
+      final res = await ApiService.post(
         context,
-        'https://school.edusathi.in/api/teacher/attendance',
+        "/teacher/attendance",
         body: {'Month': formattedMonth},
       );
 

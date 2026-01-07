@@ -1,11 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:open_file/open_file.dart';
-import 'package:student_app/auth_helper.dart';
+import 'package:student_app/api_service.dart';
 
 class PaymentPage extends StatefulWidget {
   const PaymentPage({super.key});
@@ -15,7 +14,6 @@ class PaymentPage extends StatefulWidget {
 }
 
 class _PaymentPageState extends State<PaymentPage> {
-  final String apiUrl = 'https://school.edusathi.in/api/student/payment';
   List<dynamic> payments = [];
   bool isLoading = true;
 
@@ -32,7 +30,7 @@ class _PaymentPageState extends State<PaymentPage> {
     setState(() => isLoading = true);
 
     try {
-      final response = await AuthHelper.post(context, apiUrl);
+      final response = await ApiService.post(context, "/student/payment");
 
       // 🔐 token invalid → auto logout already handled
       if (response == null) {
@@ -80,15 +78,14 @@ class _PaymentPageState extends State<PaymentPage> {
   // ---------------- DOWNLOAD RECEIPT ----------------
   Future<void> downloadReceipt(dynamic paymentId) async {
     try {
-      final response = await AuthHelper.post(
+      // 🔹 Step 1: Get receipt URL
+      final response = await ApiService.post(
         context,
-        'https://school.edusathi.in/api/student/receipt',
+        "/student/receipt",
         body: {'payment_id': paymentId.toString()},
       );
 
-      if (response == null) return;
-
-      if (response.statusCode != 200) {
+      if (response == null || response.statusCode != 200) {
         throw Exception("Failed to fetch receipt");
       }
 
@@ -98,43 +95,40 @@ class _PaymentPageState extends State<PaymentPage> {
         throw Exception(data['message'] ?? 'Invalid receipt response');
       }
 
-      final url = data['url'];
-      final fileName = url.split('/').last;
+      final String url = data['url'];
+      final String fileName = url.split('/').last;
 
-      // 🔒 Android permission only
+      final dio = Dio();
+
+      // ================= ANDROID =================
       if (Platform.isAndroid) {
-        final status = await Permission.storage.request();
-        if (!status.isGranted) {
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Storage permission denied")),
-          );
-          return;
-        }
+        // ✅ REAL Downloads folder (visible)
+        final downloadsDir = Directory('/storage/emulated/0/Download');
+        final filePath = '${downloadsDir.path}/$fileName';
+
+        await dio.download(url, filePath);
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Receipt saved to Downloads folder")),
+        );
       }
 
-      final dir = await getApplicationDocumentsDirectory();
-      final filePath = '${dir.path}/$fileName';
+      // ================= iOS =================
+      if (Platform.isIOS) {
+        final dir = await getApplicationDocumentsDirectory();
+        final filePath = '${dir.path}/$fileName';
 
-      final pdfResponse = await http.get(Uri.parse(url));
-      if (pdfResponse.statusCode != 200) {
-        throw Exception("Failed to download file");
+        await dio.download(url, filePath);
+
+        if (!mounted) return;
+        await OpenFile.open(filePath); // Files app
       }
-
-      final file = File(filePath);
-      await file.writeAsBytes(pdfResponse.bodyBytes, flush: true);
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Receipt downloaded: $fileName")));
-
-      await OpenFile.open(filePath);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text("Download error: $e")));
+      ).showSnackBar(const SnackBar(content: Text("Receipt download failed")));
     }
   }
 

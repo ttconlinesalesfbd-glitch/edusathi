@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:student_app/auth_helper.dart';
+import 'package:student_app/api_service.dart';
 import 'package:student_app/complaint/addComplaint.dart';
 import 'package:student_app/complaint/complaint_detail_page.dart';
 import 'package:student_app/dashboard/dashboard_screen.dart';
@@ -14,7 +14,7 @@ class ViewComplaintPage extends StatefulWidget {
 }
 
 class _ViewComplaintPageState extends State<ViewComplaintPage> {
-  final String apiUrl = 'https://school.edusathi.in/api/student/complaint';
+ 
 
   List<dynamic> complaints = [];
   bool isLoading = true;
@@ -34,7 +34,7 @@ class _ViewComplaintPageState extends State<ViewComplaintPage> {
     setState(() => isLoading = true);
 
     try {
-      final res = await AuthHelper.post(context, apiUrl);
+      final res = await ApiService.post(context,'/student/complaint');
 
       // AuthHelper handles 401 + logout
       if (res == null) return;

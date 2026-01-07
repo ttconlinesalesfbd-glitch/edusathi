@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:student_app/auth_helper.dart';
+import 'package:student_app/api_service.dart';
+
 import 'package:student_app/teacher/complaint_teacher/teacher_add_complaint_page.dart';
 import 'package:student_app/teacher/complaint_teacher/teacher_complaint_details.dart';
 
@@ -32,7 +33,7 @@ class _TeacherComplaintListPageState extends State<TeacherComplaintListPage> {
     if (mounted) setState(() => isLoading = true);
 
     try {
-      final response = await AuthHelper.post(
+      final response = await ApiService.post(
         context,
         'https://school.edusathi.in/api/teacher/complaint',
       );
@@ -87,12 +88,12 @@ class _TeacherComplaintListPageState extends State<TeacherComplaintListPage> {
           style: TextStyle(color: Colors.white),
         ),
         iconTheme: const IconThemeData(color: Colors.white),
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: AppColors.primary,
         centerTitle: true,
       ),
       body: isLoading
           ? const Center(
-              child: CircularProgressIndicator(color: Colors.deepPurple),
+              child: CircularProgressIndicator(color: AppColors.primary),
             )
           : complaints.isEmpty
           ? const Center(child: Text('No complaints available'))
@@ -136,7 +137,7 @@ class _TeacherComplaintListPageState extends State<TeacherComplaintListPage> {
                               style: const TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.deepPurple,
+                                color: AppColors.primary,
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -144,7 +145,7 @@ class _TeacherComplaintListPageState extends State<TeacherComplaintListPage> {
                               children: [
                                 const Icon(
                                   Icons.date_range,
-                                  color: Colors.deepPurple,
+                                  color: AppColors.primary,
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
@@ -180,7 +181,7 @@ class _TeacherComplaintListPageState extends State<TeacherComplaintListPage> {
               ),
             ),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: AppColors.primary,
         onPressed: () async {
           final result = await Navigator.push(
             context,

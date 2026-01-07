@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:student_app/api_service.dart';
 import 'package:student_app/login_page.dart';
 import 'package:student_app/alert/stu_alert.dart';
 import 'package:student_app/connect_teacher/teacher_chat_list.dart';
@@ -69,38 +70,36 @@ class _TeacherSidebarMenuState extends State<TeacherSidebarMenu> {
     iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
   );
 
-  Future<void> _logout(BuildContext context) async {
-    final prefs = await SharedPreferences.getInstance();
+ Future<void> _logout(BuildContext context) async {
+  final prefs = await SharedPreferences.getInstance();
+  final token = prefs.getString('auth_token') ?? '';
 
-    // ✅ FIX: correct token key
-    final token = prefs.getString('auth_token') ?? '';
-
-    try {
-      if (token.isNotEmpty) {
-        await http.post(
-          Uri.parse('https://school.edusathi.in/api/logout'),
-          headers: {
-            'Authorization': 'Bearer $token',
-            'Accept': 'application/json',
-          },
-        );
-      }
-    } catch (_) {
-      // ignore API failure, still logout locally
+  try {
+    if (token.isNotEmpty) {
+      await http.post(
+        Uri.parse('https://school.edusathi.in/api/logout'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
     }
+  } catch (_) {}
 
-    // ✅ FIX: clear BOTH storages
-    await prefs.clear();
-    await _secureStorage.delete(key: 'auth_token');
+  await prefs.clear();
+  await prefs.setBool('is_logged_in', false);
 
-    if (!mounted) return;
+  await _secureStorage.deleteAll();
 
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => LoginPage()),
-      (_) => false,
-    );
-  }
+  if (!mounted) return;
+
+  Navigator.pushAndRemoveUntil(
+    context,
+    MaterialPageRoute(builder: (_) => LoginPage()),
+    (_) => false,
+  );
+}
+
 
   @override
   Widget build(BuildContext context) {
@@ -108,7 +107,7 @@ class _TeacherSidebarMenuState extends State<TeacherSidebarMenu> {
       child: ListView(
         children: [
           Container(
-            color: Colors.deepPurple,
+            color: AppColors.primary,
             height: 130,
             padding: const EdgeInsets.all(12),
             child: Row(

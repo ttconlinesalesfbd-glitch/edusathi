@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:student_app/auth_helper.dart';
+import 'package:student_app/api_service.dart';
 
 class StudentAttendanceScreen extends StatefulWidget {
   const StudentAttendanceScreen({super.key});
@@ -32,10 +32,9 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
 
     try {
       final formattedMonth = DateFormat('yyyy-MM').format(_focusedMonth);
-
-      final res = await AuthHelper.post(
+      final res = await ApiService.post(
         context,
-        'https://school.edusathi.in/api/student/attendance',
+        "/student/attendance",
         body: {'Month': formattedMonth},
       );
 
@@ -65,9 +64,9 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
       debugPrint("🚨 STUDENT ATTENDANCE ERROR: $e");
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Something went wrong")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Something went wrong")));
     } finally {
       if (!mounted) return;
       setState(() => _isLoading = false);
@@ -150,9 +149,7 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
               child: Container(
                 color: Colors.black.withOpacity(0.1),
                 child: const Center(
-                  child: CircularProgressIndicator(
-                    color: Colors.deepPurple,
-                  ),
+                  child: CircularProgressIndicator(color: Colors.deepPurple),
                 ),
               ),
             ),

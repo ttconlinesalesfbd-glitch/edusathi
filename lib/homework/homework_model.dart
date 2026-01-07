@@ -1,9 +1,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
+import 'package:student_app/api_service.dart';
 import 'package:student_app/homework/homework_detail_page.dart';
 import 'package:student_app/homework/homework_page.dart';
 
@@ -28,37 +29,54 @@ Future<void> downloadFile(BuildContext context, String filePath) async {
   if (_isDownloading) return;
   _isDownloading = true;
 
+  // ✅ URL now comes from ApiService
+  final fullUrl = filePath.startsWith('http')
+      ? filePath
+      : ApiService.homeworkAttachment(filePath);
+
   try {
-    final fullUrl = filePath.startsWith('http')
-        ? filePath
-        : 'https://school.edusathi.in/$filePath';
+    final fileName = fullUrl.split('/').last;
+    final dio = Dio();
+    late String savePath;
 
-    final response = await http.get(Uri.parse(fullUrl));
+    // ================= ANDROID =================
+    if (Platform.isAndroid) {
+      final downloadsDir = Directory('/storage/emulated/0/Download');
+      savePath = '${downloadsDir.path}/$fileName';
 
-    if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
-      throw Exception("Download failed");
+      await dio.download(fullUrl, savePath);
+
+      // ✅ Preview open
+      await OpenFile.open(savePath);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("📥 Downloaded & Preview opened")),
+        );
+      }
     }
 
-    final dir = await getApplicationDocumentsDirectory();
-    final fileName = fullUrl.split('/').last;
-    final file = File('${dir.path}/$fileName');
+    // ================= iOS =================
+    if (Platform.isIOS) {
+      final dir = await getApplicationDocumentsDirectory();
+      savePath = '${dir.path}/$fileName';
 
-    await file.writeAsBytes(response.bodyBytes, flush: true);
+      await dio.download(fullUrl, savePath);
 
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger?.showSnackBar(
-      SnackBar(content: Text("Downloaded to ${file.path}")),
-    );
-
-    await OpenFile.open(file.path);
-  } catch (_) {
-    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-      const SnackBar(content: Text("Download failed")),
-    );
+      // ✅ Preview open
+      await OpenFile.open(savePath);
+    }
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("❌ Download failed")),
+      );
+    }
   } finally {
     _isDownloading = false;
   }
 }
+
 
 // ====================================================
 // 📝 RECENT HOMEWORKS WIDGET (UI UNCHANGED)
@@ -121,15 +139,11 @@ Widget buildRecentHomeworks(
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) =>
-                              HomeworkDetailPage(homework: hw),
+                          builder: (_) => HomeworkDetailPage(homework: hw),
                         ),
                       );
                     },
-                    leading: const Icon(
-                      Icons.book,
-                      color: Colors.deepPurple,
-                    ),
+                    leading: const Icon(Icons.book, color: Colors.deepPurple),
                     title: Text(
                       hw['HomeworkTitle'] ?? '',
                       style: const TextStyle(fontSize: 14),

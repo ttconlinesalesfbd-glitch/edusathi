@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import '../auth_helper.dart'; 
+import 'package:student_app/api_service.dart';
 
 class ChangePasswordPage extends StatefulWidget {
   const ChangePasswordPage({super.key});
@@ -67,9 +67,9 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
   setState(() => isSubmitting = true);
 
   try {
-    final response = await AuthHelper.post(
+    final response = await ApiService.post(
       context,
-      'https://school.edusathi.in/api/password',
+      '/password',
       body: {
         'current_pass': currentPass,
         'new_pass': newPass,

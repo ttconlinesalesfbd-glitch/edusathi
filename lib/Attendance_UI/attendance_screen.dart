@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:student_app/auth_helper.dart';
+import 'package:student_app/api_service.dart';
+
 
 class AttendanceScreen extends StatefulWidget {
   const AttendanceScreen({super.key});
@@ -41,11 +42,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         selectedDate ?? DateFormat('yyyy-MM-dd').format(DateTime.now());
 
     try {
-      final res = await AuthHelper.post(
-        context,
-        'https://school.edusathi.in/api/teacher/std_attendance/report',
-        body: {'Date': dateToSend},
-      );
+     final res = await ApiService.post(
+  context,
+  "/teacher/std_attendance/report",
+  body: {'Date': dateToSend},
+);
+
 
       // 🔐 AuthHelper handles 401 + logout
       if (res == null) return;
@@ -105,7 +107,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           'Attendance Report',
           style: TextStyle(color: Colors.white),
         ),
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: AppColors.primary,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: Stack(
@@ -131,7 +133,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 color: Colors.black.withOpacity(0.1),
                 child: const Center(
                   child: CircularProgressIndicator(
-                    color: Colors.deepPurple,
+                    color: AppColors.primary,
                   ),
                 ),
               ),

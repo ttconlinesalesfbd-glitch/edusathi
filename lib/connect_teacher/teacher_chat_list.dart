@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:student_app/auth_helper.dart';
+import 'package:student_app/api_service.dart';
 import 'package:student_app/connect_teacher/teacher_chat.dart';
 
 class TeacherChatStudentListPage extends StatefulWidget {
@@ -34,9 +34,9 @@ class _TeacherChatStudentListPageState
     setState(() => _isLoading = true);
 
     try {
-      final res = await AuthHelper.post(
+      final res = await ApiService.post(
         context,
-        "https://school.edusathi.in/api/teacher/student/list",
+        "/teacher/student/list",
       );
 
       // AuthHelper already handles 401 + logout
@@ -103,7 +103,7 @@ class _TeacherChatStudentListPageState
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
       appBar: AppBar(
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: AppColors.primary,
         elevation: 0,
         title: _isSearching
             ? TextField(
@@ -199,7 +199,7 @@ class _TeacherChatStudentListPageState
               Text(
                 "Roll No: ${student['RollNo']}",
                 style: const TextStyle(
-                  color: Colors.deepPurple,
+                  color: AppColors.primary,
                   fontWeight: FontWeight.w500,
                   fontSize: 12,
                 ),
@@ -223,7 +223,7 @@ class _TeacherChatStudentListPageState
         ),
         trailing: const Icon(
           Icons.chat_bubble_outline,
-          color: Colors.deepPurple,
+          color: AppColors.primary,
         ),
       ),
     );

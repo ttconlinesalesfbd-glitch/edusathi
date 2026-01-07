@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:student_app/auth_helper.dart';
+import 'package:student_app/api_service.dart';
 
 class FeeDetailsPage extends StatefulWidget {
   const FeeDetailsPage({super.key});
@@ -10,7 +10,7 @@ class FeeDetailsPage extends StatefulWidget {
 }
 
 class _FeeDetailsPageState extends State<FeeDetailsPage> {
-  final String apiUrl = 'https://school.edusathi.in/api/student/fee';
+  
 
   final List<String> months = [
     'April',
@@ -57,9 +57,9 @@ class _FeeDetailsPageState extends State<FeeDetailsPage> {
     setState(() => isLoading = true);
 
     try {
-      final response = await AuthHelper.post(
+      final response = await ApiService.post(
         context,
-        apiUrl,
+       "/student/fee",
         body: {'Month': monthKey},
       );
 

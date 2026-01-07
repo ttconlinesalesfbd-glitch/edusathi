@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:student_app/auth_helper.dart';
+import 'package:student_app/api_service.dart';
 
 class TeacherComplaintDetailPage extends StatefulWidget {
   final int complaintId;
@@ -44,9 +44,9 @@ class _TeacherComplaintDetailPageState
   debugPrint("🆔 ComplaintId: ${widget.complaintId}");
 
   try {
-    final response = await AuthHelper.post(
+    final response = await ApiService.post(
       context,
-      'https://school.edusathi.in/api/teacher/complaint/history',
+      '/teacher/complaint/history',
       body: {
         'ComplaintId': widget.complaintId.toString(),
       },
@@ -108,12 +108,12 @@ class _TeacherComplaintDetailPageState
       appBar: AppBar(
         title:
             const Text("Complaint Details", style: TextStyle(color: Colors.white)),
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: AppColors.primary,
         leading: const BackButton(color: Colors.white),
       ),
       body: isLoading
           ? const Center(
-              child: CircularProgressIndicator(color: Colors.deepPurple),
+              child: CircularProgressIndicator(color: AppColors.primary),
             )
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16),
@@ -135,14 +135,14 @@ class _TeacherComplaintDetailPageState
                             style: const TextStyle(
                               fontSize: 17,
                               fontWeight: FontWeight.bold,
-                              color: Colors.deepPurple,
+                              color: AppColors.primary,
                             ),
                           ),
                           const SizedBox(height: 8),
                           Row(
                             children: [
                               const Icon(Icons.date_range,
-                                  color: Colors.deepPurple),
+                                  color: AppColors.primary),
                               const SizedBox(width: 8),
                               Text(
                                 formatDate(widget.date),
@@ -209,7 +209,7 @@ class _TeacherComplaintDetailPageState
                               Row(
                                 children: [
                                   const Icon(Icons.timeline,
-                                      size: 18, color: Colors.deepPurple),
+                                      size: 18, color: AppColors.primary),
                                   const SizedBox(width: 6),
                                   Text(
                                     formatDate(item['Date'] ?? ''),

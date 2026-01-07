@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:student_app/auth_helper.dart';
+import 'package:student_app/api_service.dart';
 
 class TimeTablePage extends StatefulWidget {
   const TimeTablePage({super.key});
@@ -40,9 +40,9 @@ class _TimeTablePageState extends State<TimeTablePage> {
     try {
       debugPrint("📤 TIMETABLE REQUEST DAY: $dayCode");
 
-      final res = await AuthHelper.post(
+      final res = await ApiService.post(
         context,
-        'https://school.edusathi.in/api/student/timetable',
+        '/student/timetable',
         body: {'Day': dayCode},
       );
 
@@ -106,7 +106,7 @@ class _TimeTablePageState extends State<TimeTablePage> {
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
         elevation: 2,
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: AppColors.primary,
       ),
       body: Column(
         children: [
@@ -117,7 +117,7 @@ class _TimeTablePageState extends State<TimeTablePage> {
               ? const Expanded(
                   child: Center(
                     child: CircularProgressIndicator(
-                      color: Colors.deepPurple,
+                      color: AppColors.primary,
                     ),
                   ),
                 )
@@ -134,11 +134,11 @@ class _TimeTablePageState extends State<TimeTablePage> {
 
                             Color bgColor;
                             if (slot == "1") {
-                              bgColor = Colors.deepPurple;
+                              bgColor = AppColors.primary;
                             } else if (slot == "2") {
                               bgColor = Colors.orange;
                             } else {
-                              bgColor = Colors.deepPurple;
+                              bgColor = AppColors.primary;
                             }
 
                             return Card(
@@ -266,9 +266,9 @@ class _TimeTablePageState extends State<TimeTablePage> {
               margin: const EdgeInsets.symmetric(horizontal: 6),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
-                color: isSelected ? Colors.deepPurple : Colors.transparent,
+                color: isSelected ? AppColors.primary : Colors.transparent,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.deepPurple, width: 1.2),
+                border: Border.all(color: AppColors.primary, width: 1.2),
               ),
               child: Row(
                 children: [

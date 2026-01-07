@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:student_app/auth_helper.dart';
+import 'package:student_app/api_service.dart';
 
 class TeacherChatScreen extends StatefulWidget {
   final int studentId;
@@ -48,9 +48,9 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
     if (!mounted) return;
 
     try {
-      final res = await AuthHelper.post(
+      final res = await ApiService.post(
         context,
-        "https://school.edusathi.in/api/teacher/messages",
+        "/teacher/messages",
         body: {
           "StudentId": widget.studentId.toString(),
         },
@@ -98,9 +98,9 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
     setState(() => _isSending = true);
 
     try {
-      final res = await AuthHelper.post(
+      final res = await ApiService.post(
         context,
-        "https://school.edusathi.in/api/teacher/message/send",
+        "/teacher/message/send",
         body: {
           "receiver_id": widget.studentId.toString(),
           "message": text,
@@ -154,7 +154,7 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
     return Scaffold(
       backgroundColor: Colors.grey.shade200,
       appBar: AppBar(
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: AppColors.primary,
         iconTheme: const IconThemeData(color: Colors.white),
         titleSpacing: 0,
         title: Row(
@@ -214,7 +214,7 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
                                   ),
                                   decoration: BoxDecoration(
                                     color: isTeacher
-                                        ? Colors.deepPurple.shade400
+                                        ? AppColors.primary.shade400
                                         : Colors.grey.shade300,
                                     borderRadius: BorderRadius.only(
                                       topLeft: const Radius.circular(12),
@@ -295,7 +295,7 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
             ),
             const SizedBox(width: 8),
             CircleAvatar(
-              backgroundColor: Colors.deepPurple,
+              backgroundColor: AppColors.primary,
               radius: 22,
               child: _isSending
                   ? const SizedBox(

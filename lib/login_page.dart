@@ -1,13 +1,9 @@
-import 'dart:async';
 import 'dart:convert';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
-// import 'package:student_app/dashboard/dashboard_screen.dart';
-import 'package:student_app/splash_screen.dart';
-// import 'package:student_app/teacher/teacher_dashboard_screen.dart';
+import 'package:student_app/api_service.dart';
+import 'package:student_app/dashboard/dashboard_screen.dart';
+import 'package:student_app/teacher/teacher_dashboard_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class LoginPage extends StatefulWidget {
@@ -16,7 +12,6 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  String baseUrl = "https://school.edusathi.in/api";
   final TextEditingController idController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   bool _obscureText = true;
@@ -24,12 +19,6 @@ class _LoginPageState extends State<LoginPage> {
   String _errorMessage = '';
   String selectedRole = 'Student';
 
-  final FlutterSecureStorage secureStorage = FlutterSecureStorage(
-    aOptions: const AndroidOptions(encryptedSharedPreferences: true),
-    iOptions: const IOSOptions(
-      accessibility: KeychainAccessibility.first_unlock,
-    ),
-  );
   @override
   void dispose() {
     idController.dispose();
@@ -40,7 +29,10 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _login() async {
     if (idController.text.trim().isEmpty ||
         passwordController.text.trim().isEmpty) {
-      setState(() => _errorMessage = "Please enter ID and password");
+      setState(() {
+        _errorMessage = "Please enter ID and password";
+        _isLoading = false;
+      });
       return;
     }
 
@@ -49,145 +41,82 @@ class _LoginPageState extends State<LoginPage> {
       _errorMessage = '';
     });
 
-    debugPrint("🚀 LOGIN STARTED");
-    debugPrint("👤 ROLE: $selectedRole");
-    debugPrint("👤 USERNAME: ${idController.text.trim()}");
+    final response = await ApiService.postPublic(
+      "/login",
+      body: {
+        'username': idController.text.trim(),
+        'password': passwordController.text,
+        'type': selectedRole,
+      },
+    );
 
-    try {
-      final response = await http
-          .post(
-            Uri.parse('$baseUrl/login'),
-            headers: const {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
-            body: jsonEncode({
-              'username': idController.text.trim(),
-              'password': passwordController.text,
-              'type': selectedRole,
-            }),
-          )
-          .timeout(const Duration(seconds: 20));
-
-      debugPrint("🟢 LOGIN STATUS: ${response.statusCode}");
-      debugPrint("🟢 LOGIN BODY: ${response.body}");
-
-      if (response.statusCode != 200) {
-        throw Exception("Server error ${response.statusCode}");
-      }
-
-      final data = jsonDecode(response.body);
-
-      if (data['status'] == true && data['token'] != null) {
-        final prefs = await SharedPreferences.getInstance();
-
-        // 🔐 SAVE SESSION FLAGS (REQUIRED FOR ANDROID)
-
-        await prefs.setString('user_type', data['user_type'] ?? '');
-
-        // ✅ CRITICAL FIX (ANDROID NEEDS THIS)
-        await prefs.setString('auth_token', data['token']);
-
-        // 🔐 SAVE TOKEN SECURELY (IOS SAFE)
-        await secureStorage.write(key: 'auth_token', value: data['token']);
-
-        debugPrint("✅ LOGIN SUCCESS");
-        debugPrint("🔑 TOKEN SAVED (Secure + Prefs)");
-        debugPrint("👤 USER TYPE: ${data['user_type']}");
-
-        final profile = data['profile'] ?? {};
-
-        if (data['user_type'] == 'Student') {
-          await prefs.setString('student_name', profile['student_name'] ?? '');
-          await prefs.setString(
-            'student_photo',
-            profile['student_photo'] ?? '',
-          );
-          await prefs.setString('class_name', profile['class_name'] ?? '');
-          await prefs.setString('section', profile['section'] ?? '');
-          await prefs.setString('school_name', profile['school_name'] ?? '');
-          // 🟢 DEBUG PRINTS (STUDENT)
-          debugPrint("🧑 STUDENT NAME: ${prefs.getString('student_name')}");
-          debugPrint("🖼️ STUDENT PHOTO: ${prefs.getString('student_photo')}");
-          debugPrint("🏫 SCHOOL NAME: ${prefs.getString('school_name')}");
-          debugPrint("🏷️ CLASS: ${prefs.getString('class_name')}");
-          debugPrint("📘 SECTION: ${prefs.getString('section')}");
-        } else {
-          await prefs.setString('teacher_name', profile['name'] ?? '');
-          await prefs.setString('school_name', profile['school'] ?? '');
-          await prefs.setString('teacher_photo', profile['photo'] ?? '');
-          await prefs.setString('teacher_class', profile['class'] ?? '');
-          await prefs.setString('teacher_section', profile['section'] ?? '');
-        }
-
-        debugPrint(
-          "🔐 AUTH TOKEN (SECURE): ${await secureStorage.read(key: 'auth_token')}",
-        );
-        debugPrint("💾 PROFILE SAVED");
-        passwordController.clear();
-
-        if (!mounted) return;
-
-        debugPrint("➡️ NAVIGATING TO DASHBOARD");
-
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const SplashScreen()),
-          (route) => false,
-        );
-        return;
-      } else {
-        debugPrint("❌ LOGIN FAILED: ${data['message']}");
-        setState(() {
-          _errorMessage = data['message'] ?? "Invalid login credentials";
-        });
-      }
-    } on TimeoutException {
-      debugPrint("⏱️ LOGIN TIMEOUT");
-      setState(() => _errorMessage = "Server timeout. Please try again.");
-    } catch (e) {
-      debugPrint("🚨 LOGIN EXCEPTION: $e");
-      setState(() => _errorMessage = "Login failed. Please try again.");
-    } finally {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-      debugPrint("🔚 LOGIN PROCESS END");
-    }
-  }
-
-  Future<void> sendFcmTokenToLaravel() async {
-    final authToken = await secureStorage.read(key: 'auth_token');
-    final fcmToken = await FirebaseMessaging.instance.getToken();
-
-    if (authToken == null || authToken.isEmpty) {
-      debugPrint('❌ Auth token missing');
+    if (response == null) {
+      setState(() {
+        _errorMessage = "Server not responding";
+        _isLoading = false;
+      });
       return;
     }
 
-    if (fcmToken == null) {
+    final data = jsonDecode(response.body);
+    debugPrint("🟢 LOGIN RESPONSE: $data");
+    if (data['status'] == true) {
+      await ApiService.saveSession(data);
+
+      // ✅ ADD THIS
+      await sendFcmTokenToLaravel();
+
+    if (!mounted) return;
+
+if (selectedRole == 'Teacher') {
+  Navigator.pushAndRemoveUntil(
+    context,
+    MaterialPageRoute(builder: (_) => const TeacherDashboardScreen()),
+    (_) => false,
+  );
+} else {
+  Navigator.pushAndRemoveUntil(
+    context,
+    MaterialPageRoute(builder: (_) => const DashboardScreen()),
+    (_) => false,
+  );
+}
+
+    } else {
+      setState(() {
+        _errorMessage = data['message'] ?? "Invalid credentials";
+      });
+    }
+
+    setState(() => _isLoading = false);
+  }
+
+  Future<void> sendFcmTokenToLaravel() async {
+    final fcmToken = await FirebaseMessaging.instance.getToken();
+
+    if (fcmToken == null || fcmToken.isEmpty) {
       debugPrint('❌ FCM token not found');
       return;
     }
 
     try {
-      final response = await http.post(
-        Uri.parse('https://school.edusathi.in/api/save_token'),
-        headers: {
-          'Authorization': 'Bearer $authToken',
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: jsonEncode({'fcm_token': fcmToken}),
+      final response = await ApiService.post(
+        context,
+        "/save_token",
+        body: {'fcm_token': fcmToken},
       );
 
-      debugPrint("🔵 FCM Status: ${response.statusCode}");
+      if (response != null) {
+        debugPrint("✅ FCM token sent successfully");
+      }
     } catch (e) {
       debugPrint("❌ FCM Error: $e");
     }
   }
 
   void _launchURL() async {
-    final Uri url = Uri.parse('https://www.techinnovationapp.in');
+    final Uri url = Uri.parse(AppAssets.companyWebsite);
+
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
       throw 'Could not launch $url';
     }
@@ -221,7 +150,7 @@ class _LoginPageState extends State<LoginPage> {
                   borderRadius: BorderRadius.circular(30),
                   gradient: selectedRole == 'Student'
                       ? LinearGradient(
-                          colors: [Colors.purple, Colors.deepPurple],
+                          colors: [Colors.purple, AppColors.primary],
                         )
                       : null,
                 ),
@@ -230,7 +159,7 @@ class _LoginPageState extends State<LoginPage> {
                   style: TextStyle(
                     color: selectedRole == 'Student'
                         ? Colors.white
-                        : Colors.deepPurple,
+                        : AppColors.primary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -249,7 +178,7 @@ class _LoginPageState extends State<LoginPage> {
                   borderRadius: BorderRadius.circular(30),
                   gradient: selectedRole == 'Teacher'
                       ? LinearGradient(
-                          colors: [Colors.purple, Colors.deepPurple],
+                          colors: [Colors.purple, AppColors.primary],
                         )
                       : null,
                 ),
@@ -258,7 +187,7 @@ class _LoginPageState extends State<LoginPage> {
                   style: TextStyle(
                     color: selectedRole == 'Teacher'
                         ? Colors.white
-                        : Colors.deepPurple,
+                        : AppColors.primary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -285,19 +214,19 @@ class _LoginPageState extends State<LoginPage> {
               padding: EdgeInsets.all(20),
               child: Column(
                 children: [
-                  Image.asset('assets/images/logo.png', height: 80),
+                  Image.asset(AppAssets.logo, height: 80),
                   SizedBox(height: 10),
                   Text(
-                    "Edusathi School",
+                    AppAssets.schoolName,
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
-                      color: Colors.deepPurple,
+                      color: AppColors.primary,
                     ),
                   ),
                   SizedBox(height: 10),
                   Text(
-                    "Empowering Education, Simplifying Management.",
+                    AppAssets.schoolDescription,
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 14),
                   ),
@@ -310,7 +239,7 @@ class _LoginPageState extends State<LoginPage> {
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: Colors.deepPurple,
+                      color: AppColors.primary,
                     ),
                   ),
                   SizedBox(height: 20),
@@ -360,7 +289,7 @@ class _LoginPageState extends State<LoginPage> {
                         vertical: 12,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.red,
+                        color: AppColors.danger,
                         borderRadius: BorderRadius.circular(30),
                       ),
                       child: Row(
@@ -391,7 +320,7 @@ class _LoginPageState extends State<LoginPage> {
                     width: double.infinity,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.deepPurple,
+                        backgroundColor: AppColors.primary,
                         padding: EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -429,7 +358,7 @@ class _LoginPageState extends State<LoginPage> {
                         style: TextStyle(fontSize: 12),
                       ),
                       Text(
-                        "TechInnovationApp",
+                        AppAssets.designer,
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           color: Colors.purple,
@@ -441,8 +370,8 @@ class _LoginPageState extends State<LoginPage> {
                       GestureDetector(
                         onTap: _launchURL,
                         child: Text(
-                          "www.techinnovationapp.in",
-                          style: TextStyle(color: Colors.blue, fontSize: 12),
+                          AppAssets.websiteName,
+                          style: TextStyle(color: AppColors.info, fontSize: 12),
                         ),
                       ),
                     ],

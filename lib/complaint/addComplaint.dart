@@ -1,6 +1,6 @@
 
 import 'package:flutter/material.dart';
-import 'package:student_app/auth_helper.dart';
+import 'package:student_app/api_service.dart';
 
 class AddComplaint extends StatefulWidget {
   const AddComplaint({super.key});
@@ -35,9 +35,9 @@ class _AddComplaintPageState extends State<AddComplaint> {
     try {
       debugPrint("📤 COMPLAINT BODY: $description");
 
-      final res = await AuthHelper.post(
+      final res = await ApiService.post(
         context,
-        "https://school.edusathi.in/api/student/complaint/store",
+        "/student/complaint/store",
         body: {
           "Description": description,
         },
@@ -97,7 +97,7 @@ class _AddComplaintPageState extends State<AddComplaint> {
           "Register Complaint",
           style: TextStyle(color: Colors.white),
         ),
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: AppColors.primary,
         leading: const BackButton(color: Colors.white),
       ),
       body: Padding(
@@ -123,7 +123,7 @@ class _AddComplaintPageState extends State<AddComplaint> {
                 style: TextStyle(color: Colors.white),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.deepPurple,
+                backgroundColor: AppColors.primary,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 24,
                   vertical: 12,

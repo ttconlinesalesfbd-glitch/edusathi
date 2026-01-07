@@ -3,7 +3,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
-import 'package:student_app/auth_helper.dart';
+import 'package:student_app/api_service.dart';
+
 
 class SchoolInfoPage extends StatefulWidget {
   @override
@@ -26,9 +27,9 @@ class _SchoolInfoPageState extends State<SchoolInfoPage> {
 
   Future<void> fetchSchoolInfo() async {
     try {
-      final response = await AuthHelper.post(
+      final response = await ApiService.post(
         context,
-        'https://school.edusathi.in/api/school',
+        '/school',
       );
 
       if (response == null) {
@@ -83,29 +84,44 @@ class _SchoolInfoPageState extends State<SchoolInfoPage> {
           : 'https://school.edusathi.in/$qrCode';
 
       final response = await http.get(Uri.parse(normalizedUrl));
-      if (response.statusCode != 200) {
+      if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
         throw Exception("Download failed");
       }
 
-      final dir = await getApplicationDocumentsDirectory();
-      final filePath =
-          '${dir.path}/School_QR_${DateTime.now().millisecondsSinceEpoch}.png';
+      final fileName = 'School_QR_${DateTime.now().millisecondsSinceEpoch}.png';
 
-      final file = File(filePath);
-      await file.writeAsBytes(response.bodyBytes);
+      // ================= ANDROID =================
+      if (Platform.isAndroid) {
+        final downloadsDir = Directory('/storage/emulated/0/Download');
+        final file = File('${downloadsDir.path}/$fileName');
 
-      if (!mounted) return;
+        await file.writeAsBytes(response.bodyBytes, flush: true);
 
-      setState(() => isDownloading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("✅ QR Code saved to Documents")),
-      );
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("✅ QR saved to Downloads folder")),
+        );
+      }
+
+      // ================= iOS =================
+      if (Platform.isIOS) {
+        final dir = await getApplicationDocumentsDirectory();
+        final file = File('${dir.path}/$fileName');
+
+        await file.writeAsBytes(response.bodyBytes, flush: true);
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("✅ QR saved in Files app")),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
-      setState(() => isDownloading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("❌ Failed to download QR Code")),
       );
+    } finally {
+      if (mounted) setState(() => isDownloading = false);
     }
   }
 
