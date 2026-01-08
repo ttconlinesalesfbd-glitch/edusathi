@@ -204,7 +204,7 @@ final ImagePicker _picker = ImagePicker();
 
  Future<void> pickImage() async {
   final XFile? image = await _picker.pickImage(
-    source: ImageSource.gallery, // camera bhi kar sakte ho
+    source: ImageSource.gallery, 
     imageQuality: 80,
   );
 
@@ -217,7 +217,6 @@ final ImagePicker _picker = ImagePicker();
 
   @override
   Widget build(BuildContext context) {
-    // ... (rest of the build method is the same)
     return Scaffold(
       appBar: AppBar(
         title: Text(

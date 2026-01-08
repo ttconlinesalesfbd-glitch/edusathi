@@ -6,19 +6,17 @@ class NotificationService {
   static final FlutterLocalNotificationsPlugin _notificationsPlugin =
       FlutterLocalNotificationsPlugin();
 
-  static const AndroidNotificationChannel _channel =
-      AndroidNotificationChannel(
-    'edusathi_channel', // 🔒 fixed channel id
+  static const AndroidNotificationChannel _channel = AndroidNotificationChannel(
+    'edusathi_channel',
     'EduSathi Notifications',
     description: 'Notifications for EduSathi app',
     importance: Importance.high,
   );
 
   /// 🔹 INITIALIZE (Android + iOS)
-  static Future<void> initialize(BuildContext context) async {
+  static Future<void> initialize() async {
     // 🔹 Android init
-    const androidInit =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
 
     // 🔹 iOS init
     const iosInit = DarwinInitializationSettings(
@@ -35,15 +33,14 @@ class NotificationService {
     // 🔹 Create Android notification channel
     await _notificationsPlugin
         .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
+          AndroidFlutterLocalNotificationsPlugin
+        >()
         ?.createNotificationChannel(_channel);
 
     await _notificationsPlugin.initialize(
       initSettings,
       onDidReceiveNotificationResponse: (NotificationResponse response) {
-        debugPrint(
-          "🔔 Notification tapped | payload: ${response.payload}",
-        );
+        debugPrint("🔔 Notification tapped | payload: ${response.payload}");
         // 👉 navigation can be added later safely
       },
     );
@@ -54,6 +51,14 @@ class NotificationService {
       badge: true,
       sound: true,
     );
+
+    // iOS foreground enable
+    await FirebaseMessaging.instance
+        .setForegroundNotificationPresentationOptions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
   }
 
   /// 🔹 SHOW NOTIFICATION (Foreground)
@@ -82,9 +87,7 @@ class NotificationService {
         notification.title ?? 'EduSathi',
         notification.body ?? '',
         details,
-        payload: message.data.isNotEmpty
-            ? message.data.toString()
-            : null,
+        payload: message.data.isNotEmpty ? message.data.toString() : null,
       );
     } catch (e) {
       debugPrint("❌ Notification display error: $e");

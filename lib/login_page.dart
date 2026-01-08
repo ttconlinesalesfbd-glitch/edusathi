@@ -66,22 +66,21 @@ class _LoginPageState extends State<LoginPage> {
       // ✅ ADD THIS
       await sendFcmTokenToLaravel();
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-if (selectedRole == 'Teacher') {
-  Navigator.pushAndRemoveUntil(
-    context,
-    MaterialPageRoute(builder: (_) => const TeacherDashboardScreen()),
-    (_) => false,
-  );
-} else {
-  Navigator.pushAndRemoveUntil(
-    context,
-    MaterialPageRoute(builder: (_) => const DashboardScreen()),
-    (_) => false,
-  );
-}
-
+      if (selectedRole == 'Teacher') {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const TeacherDashboardScreen()),
+          (_) => false,
+        );
+      } else {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const DashboardScreen()),
+          (_) => false,
+        );
+      }
     } else {
       setState(() {
         _errorMessage = data['message'] ?? "Invalid credentials";
@@ -93,6 +92,7 @@ if (selectedRole == 'Teacher') {
 
   Future<void> sendFcmTokenToLaravel() async {
     final fcmToken = await FirebaseMessaging.instance.getToken();
+    debugPrint("FCM TOKEN: $fcmToken");
 
     if (fcmToken == null || fcmToken.isEmpty) {
       debugPrint('❌ FCM token not found');

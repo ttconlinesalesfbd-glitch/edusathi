@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:student_app/Notification/notification_service.dart';
 
 import 'firebase_options.dart';
 import 'package:student_app/splash_screen.dart';
@@ -29,8 +30,9 @@ Future<void> main() async {
   FirebaseMessaging.onBackgroundMessage(
     _firebaseMessagingBackgroundHandler,
   );
-
+  await NotificationService.initialize();
   runApp(const MyApp());
+  
 }
 
 class MyApp extends StatelessWidget {
@@ -63,6 +65,11 @@ class _RootDeciderState extends State<RootDecider> {
   @override
   void initState() {
     super.initState();
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+    debugPrint("🔔 Foreground message received");
+    NotificationService.display(message);
+  });
+
     _initApp();
   }
 

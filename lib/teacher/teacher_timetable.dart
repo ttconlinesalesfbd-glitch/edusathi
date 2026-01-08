@@ -29,7 +29,7 @@ class _TeacherTimeTablePageState extends State<TeacherTimeTablePage> {
   @override
   void initState() {
     super.initState();
-    fetchTimeTableForDay(1); // Monday
+    fetchTimeTableForDay(1); 
   }
 
  Future<void> fetchTimeTableForDay(int dayCode) async {
