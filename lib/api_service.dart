@@ -59,31 +59,29 @@ class ApiService {
     };
   }
 
+  // ================= POST WITHOUT TOKEN (LOGIN / OTP) =================
+  static Future<http.Response?> postPublic(
+    String endpoint, {
+    Map<String, dynamic>? body,
+  }) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse("$baseUrl$endpoint"),
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode(body ?? {}),
+          )
+          .timeout(timeout);
 
-
-// ================= POST WITHOUT TOKEN (LOGIN / OTP) =================
-static Future<http.Response?> postPublic(
-  String endpoint, {
-  Map<String, dynamic>? body,
-}) async {
-  try {
-    final response = await http
-        .post(
-          Uri.parse("$baseUrl$endpoint"),
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode(body ?? {}),
-        )
-        .timeout(timeout);
-
-    return response;
-  } on TimeoutException {
-    debugPrint("⏱ API TIMEOUT: $endpoint");
-    return null;
+      return response;
+    } on TimeoutException {
+      debugPrint("⏱ API TIMEOUT: $endpoint");
+      return null;
+    }
   }
-}
 
   // ================= GET =================
 
@@ -114,9 +112,10 @@ static Future<http.Response?> postPublic(
       return null;
     }
   }
-static Future<String> getToken() async {
-  return await _getToken();
-}
+
+  static Future<String> getToken() async {
+    return await _getToken();
+  }
 
   // ================= POST =================
 
@@ -157,18 +156,39 @@ static Future<String> getToken() async {
   static Future<void> saveSession(Map<String, dynamic> data) async {
     final prefs = await SharedPreferences.getInstance();
 
+    // 🔐 Token
     await _secureStorage.write(key: 'auth_token', value: data['token']);
     await prefs.setString('auth_token', data['token']);
     await prefs.setBool('is_logged_in', true);
 
-    final profile = data['profile'] ?? {};
+    final String userType = data['user_type'] ?? '';
+    final Map<String, dynamic> profile = data['profile'] ?? {};
 
-    await prefs.setString('user_type', data['user_type'] ?? '');
-    await prefs.setString('student_name', profile['student_name'] ?? '');
-    await prefs.setString('class_name', profile['class_name'] ?? '');
-    await prefs.setString('section', profile['section'] ?? '');
-    await prefs.setString('school_name', profile['school_name'] ?? '');
-    await prefs.setString('student_photo', profile['student_photo'] ?? '');
+    await prefs.setString('user_type', userType);
+
+    // ================= TEACHER =================
+    if (userType.toLowerCase() == 'teacher') {
+      await prefs.setString('teacher_name', profile['name'] ?? '');
+      await prefs.setString('teacher_class', profile['class'] ?? '');
+      await prefs.setString('teacher_section', profile['section'] ?? '');
+      await prefs.setString('school_name', profile['school'] ?? '');
+      await prefs.setString('teacher_photo', profile['photo'] ?? '');
+
+      debugPrint("👨‍🏫 TEACHER LOGIN SAVED");
+      debugPrint("Name: ${profile['name']}");
+      debugPrint("Class: ${profile['class']}");
+      debugPrint("Section: ${profile['section']}");
+      debugPrint("School: ${profile['school']}");
+      debugPrint("Photo: ${profile['photo']}");
+    }
+    // ================= STUDENT =================
+    else if (userType.toLowerCase() == 'student') {
+      await prefs.setString('student_name', profile['student_name'] ?? '');
+      await prefs.setString('class_name', profile['class_name'] ?? '');
+      await prefs.setString('section', profile['section'] ?? '');
+      await prefs.setString('school_name', profile['school_name'] ?? '');
+      await prefs.setString('student_photo', profile['student_photo'] ?? '');
+    }
   }
 
   // ================= ATTACHMENTS =================
@@ -179,7 +199,8 @@ static Future<String> getToken() async {
   static String attachmentUrl(String schoolId, String folder, String file) {
     return "$s3Base/documents/$schoolId/$folder/$file";
   }
-    static String homeworkAttachment(String fileName) {
+
+  static String homeworkAttachment(String fileName) {
     return "$s3Base/homeworks/$fileName";
   }
 }
@@ -194,6 +215,7 @@ class AppColors {
 class AppAssets {
   static const defaultAvatar = 'assets/images/default_avatar.png';
   static const logo = 'assets/images/logo.png';
+  static const logo_new = 'assets/images/logo_new.png';
 
   static const schoolName = "Edusathi School";
   static const schoolDescription =

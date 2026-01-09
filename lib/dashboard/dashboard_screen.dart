@@ -946,12 +946,19 @@ class LeftSidebarMenu extends StatelessWidget {
             ),
 
             sidebarTile(
+              context: context,
               icon: Icons.dashboard,
               title: 'Dashboard',
-              onTap: () => Navigator.pop(context),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => DashboardScreen()),
+                );
+              },
             ),
             sidebarTile(
               icon: Icons.person,
+              context: context,
               title: 'Profile',
               onTap: () {
                 Navigator.push(
@@ -963,6 +970,7 @@ class LeftSidebarMenu extends StatelessWidget {
 
             sidebarTile(
               icon: Icons.book,
+              context: context,
               title: 'Homeworks',
               onTap: () {
                 Navigator.push(
@@ -972,6 +980,7 @@ class LeftSidebarMenu extends StatelessWidget {
               },
             ),
             sidebarTile(
+              context: context,
               icon: Icons.calendar_month,
               title: 'Attendance',
               onTap: () {
@@ -982,6 +991,7 @@ class LeftSidebarMenu extends StatelessWidget {
               },
             ),
             sidebarTile(
+              context: context,
               icon: Icons.calendar_today,
               title: 'Time-Table',
               onTap: () {
@@ -992,6 +1002,7 @@ class LeftSidebarMenu extends StatelessWidget {
               },
             ),
             sidebarTile(
+              context: context,
               icon: Icons.calendar_month,
               title: 'Calendar',
               onTap: () {
@@ -1003,6 +1014,7 @@ class LeftSidebarMenu extends StatelessWidget {
             ),
 
             sidebarTile(
+              context: context,
               icon: Icons.subject,
               title: 'Subjects',
               onTap: () {
@@ -1013,6 +1025,7 @@ class LeftSidebarMenu extends StatelessWidget {
               },
             ),
             sidebarTile(
+              context: context,
               icon: Icons.book_sharp,
               title: 'Syllabus',
               onTap: () {
@@ -1023,6 +1036,7 @@ class LeftSidebarMenu extends StatelessWidget {
               },
             ),
             sidebarTile(
+              context: context,
               icon: Icons.receipt_long_outlined,
               title: 'Exam Schedule',
               onTap: () {
@@ -1033,6 +1047,7 @@ class LeftSidebarMenu extends StatelessWidget {
               },
             ),
             sidebarTile(
+              context: context,
               icon: Icons.report,
               title: 'Complaint',
               onTap: () {
@@ -1043,6 +1058,7 @@ class LeftSidebarMenu extends StatelessWidget {
               },
             ),
             sidebarTile(
+              context: context,
               icon: Icons.attach_money,
               title: 'Fees',
               onTap: () {
@@ -1053,6 +1069,7 @@ class LeftSidebarMenu extends StatelessWidget {
               },
             ),
             sidebarTile(
+              context: context,
               icon: Icons.payment,
               title: 'Payment',
               onTap: () {
@@ -1063,6 +1080,7 @@ class LeftSidebarMenu extends StatelessWidget {
               },
             ),
             sidebarTile(
+              context: context,
               icon: Icons.list_alt_outlined,
               title: 'Result',
               onTap: () {
@@ -1073,6 +1091,7 @@ class LeftSidebarMenu extends StatelessWidget {
               },
             ),
             sidebarTile(
+              context: context,
               icon: Icons.school,
               title: 'School Info',
               onTap: () {
@@ -1084,6 +1103,7 @@ class LeftSidebarMenu extends StatelessWidget {
             ),
 
             sidebarTile(
+              context: context,
               icon: Icons.support_agent,
               title: 'Contact & Support',
               onTap: () {
@@ -1117,9 +1137,9 @@ class LeftSidebarMenu extends StatelessWidget {
                         child: const Text("Cancel"),
                       ),
                       TextButton(
-                        onPressed: () async {
+                        onPressed: () {
                           Navigator.pop(context);
-                          await ApiService.post(context, "/logout");
+                          ApiService.post(context, "/logout");
                         },
                         child: const Text("Logout"),
                       ),
@@ -1136,6 +1156,7 @@ class LeftSidebarMenu extends StatelessWidget {
 }
 
 Widget sidebarTile({
+  required BuildContext context,
   required IconData icon,
   required String title,
   required VoidCallback onTap,
@@ -1146,6 +1167,10 @@ Widget sidebarTile({
 
     leading: Icon(icon),
     title: Text(title),
-    onTap: onTap,
+
+    onTap: () {
+      Navigator.pop(context);
+      Future.microtask(onTap);
+    },
   );
 }

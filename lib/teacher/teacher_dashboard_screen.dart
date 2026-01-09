@@ -15,16 +15,13 @@ class TeacherDashboardScreen extends StatefulWidget {
   const TeacherDashboardScreen({super.key});
 
   @override
-  State<TeacherDashboardScreen> createState() =>
-      _TeacherDashboardScreenState();
+  State<TeacherDashboardScreen> createState() => _TeacherDashboardScreenState();
 }
-class _TeacherDashboardScreenState
-    extends State<TeacherDashboardScreen>
+
+class _TeacherDashboardScreenState extends State<TeacherDashboardScreen>
     with RouteAware {
-
-  bool isLoading = true;      
-bool isRefreshing = false; 
-
+  bool isLoading = true;
+  bool isRefreshing = false;
 
   int students = 0;
   int complaints = 0;
@@ -36,50 +33,48 @@ bool isRefreshing = false;
   Map<String, dynamic> attendance = {};
   List<Map<String, dynamic>> homeworks = [];
 
-
-@override
-void didChangeDependencies() {
-  super.didChangeDependencies();
-  routeObserver.subscribe(this, ModalRoute.of(context)! as PageRoute);
-}
-
-@override
-void dispose() {
-  routeObserver.unsubscribe(this);
-  super.dispose();
-}
-@override
-void didPopNext() {
-  _refreshDashboard();
-}
-@override
-void initState() {
-  super.initState();
-  _refreshDashboard(); // first time
-}
-
-Future<void> _refreshDashboard() async {
-  if (!mounted) return;
-
-  if (!isLoading) {
-    // back / refresh case
-    setState(() => isRefreshing = true);
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    routeObserver.subscribe(this, ModalRoute.of(context)! as PageRoute);
   }
 
-  await loadTeacherInfo();
-  await fetchDashboardData();
-  await fetchTeacherHomeworks();
+  @override
+  void dispose() {
+    routeObserver.unsubscribe(this);
+    super.dispose();
+  }
 
-  if (!mounted) return;
+  @override
+  void didPopNext() {
+    _refreshDashboard();
+  }
 
-  setState(() {
-    isLoading = false;
-    isRefreshing = false;
-  });
-}
+  @override
+  void initState() {
+    super.initState();
+    _refreshDashboard(); // first time
+  }
 
- 
+  Future<void> _refreshDashboard() async {
+    if (!mounted) return;
 
+    if (!isLoading) {
+      // back / refresh case
+      setState(() => isRefreshing = true);
+    }
+
+    await loadTeacherInfo();
+    await fetchDashboardData();
+    await fetchTeacherHomeworks();
+
+    if (!mounted) return;
+
+    setState(() {
+      isLoading = false;
+      isRefreshing = false;
+    });
+  }
 
   // ---------------- TEACHER INFO ----------------
   Future<void> loadTeacherInfo() async {
@@ -94,57 +89,50 @@ Future<void> _refreshDashboard() async {
   }
 
   // ---------------- DASHBOARD DATA ----------------
-Future<void> fetchDashboardData() async {
-  try {
-    final response = await ApiService.post(
-      context,
-      '/teacher/dashboard',
-    );
+  Future<void> fetchDashboardData() async {
+    try {
+      final response = await ApiService.post(context, '/teacher/dashboard');
 
-    if (response == null) return;
+      if (response == null) return;
 
-    final data = jsonDecode(response.body);
+      final data = jsonDecode(response.body);
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    setState(() {
-      students = data['students'] ?? 0;
-      complaints = data['complaints'] ?? 0;
-      payments = int.tryParse(data['payments'].toString()) ?? 0;
-      attendance = {
-        'present': data['attendances']?['present'] ?? 0,
-        'absent': data['attendances']?['absent'] ?? 0,
-        'leave': data['attendances']?['leave'] ?? 0,
-        'half_day': data['attendances']?['half_day'] ?? 0,
-        'working_days': data['attendances']?['working_days'] ?? 0,
-      };
-    });
-  } catch (_) {
-    // silent
+      setState(() {
+        students = data['students'] ?? 0;
+        complaints = data['complaints'] ?? 0;
+        payments = int.tryParse(data['payments'].toString()) ?? 0;
+        attendance = {
+          'present': data['attendances']?['present'] ?? 0,
+          'absent': data['attendances']?['absent'] ?? 0,
+          'leave': data['attendances']?['leave'] ?? 0,
+          'half_day': data['attendances']?['half_day'] ?? 0,
+          'working_days': data['attendances']?['working_days'] ?? 0,
+        };
+      });
+    } catch (_) {
+      // silent
+    }
   }
-}
-
 
   // ---------------- HOMEWORK ----------------
- Future<void> fetchTeacherHomeworks() async {
-  try {
-    final response = await ApiService.post(
-      context,
-      '/teacher/homework',
-    );
+  Future<void> fetchTeacherHomeworks() async {
+    try {
+      final response = await ApiService.post(context, '/teacher/homework');
 
-    if (response == null) return;
+      if (response == null) return;
 
-    final decoded = jsonDecode(response.body);
-    if (decoded is List && mounted) {
-      setState(() {
-        homeworks = List<Map<String, dynamic>>.from(decoded);
-      });
+      final decoded = jsonDecode(response.body);
+      if (decoded is List && mounted) {
+        setState(() {
+          homeworks = List<Map<String, dynamic>>.from(decoded);
+        });
+      }
+    } catch (_) {
+      // silent
     }
-  } catch (_) {
-    // silent
   }
-}
 
   // ---------------- UI ----------------
   @override
@@ -159,13 +147,8 @@ Future<void> fetchDashboardData() async {
           children: [
             Expanded(
               child: Text(
-                schoolName.isNotEmpty
-                    ? schoolName
-                    : 'Teacher Dashboard',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                ),
+                schoolName.isNotEmpty ? schoolName : 'Teacher Dashboard',
+                style: const TextStyle(color: Colors.white, fontSize: 15),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -176,8 +159,7 @@ Future<void> fetchDashboardData() async {
                     radius: 15,
                   )
                 : const CircleAvatar(
-                    backgroundImage:
-                        AssetImage('assets/images/logo_new.png'),
+                    backgroundImage: AssetImage(AppAssets.logo_new),
                     radius: 15,
                   ),
             const SizedBox(width: 15),
@@ -187,18 +169,16 @@ Future<void> fetchDashboardData() async {
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : Column(
-            children: [
-               if (isRefreshing)
-            const LinearProgressIndicator(minHeight: 3),
-              Expanded(
-                child: SingleChildScrollView(
+              children: [
+                if (isRefreshing) const LinearProgressIndicator(minHeight: 3),
+                Expanded(
+                  child: SingleChildScrollView(
                     padding: const EdgeInsets.all(16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
-                          mainAxisAlignment:
-                              MainAxisAlignment.spaceEvenly,
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
                             GestureDetector(
                               onTap: () => Navigator.push(
@@ -211,8 +191,7 @@ Future<void> fetchDashboardData() async {
                                 title: 'Students',
                                 value: students.toString(),
                                 borderColor: Colors.blue,
-                                backgroundColor:
-                                    const Color(0xFFE3F2FD),
+                                backgroundColor: const Color(0xFFE3F2FD),
                                 textColor: Colors.blue,
                               ),
                             ),
@@ -220,16 +199,14 @@ Future<void> fetchDashboardData() async {
                               onTap: () => Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) =>
-                                      PaymentTeacherScreen(),
+                                  builder: (_) => PaymentTeacherScreen(),
                                 ),
                               ),
                               child: DashboardCard(
                                 title: 'Payments',
                                 value: payments.toString(),
                                 borderColor: Colors.green,
-                                backgroundColor:
-                                    const Color(0xFFE8F5E9),
+                                backgroundColor: const Color(0xFFE8F5E9),
                                 textColor: Colors.green,
                               ),
                             ),
@@ -237,16 +214,14 @@ Future<void> fetchDashboardData() async {
                               onTap: () => Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) =>
-                                      TeacherComplaintListPage(),
+                                  builder: (_) => TeacherComplaintListPage(),
                                 ),
                               ),
                               child: DashboardCard(
                                 title: 'Complaints',
                                 value: complaints.toString(),
                                 borderColor: Colors.red,
-                                backgroundColor:
-                                    const Color(0xFFFFEBEE),
+                                backgroundColor: const Color(0xFFFFEBEE),
                                 textColor: Colors.red,
                               ),
                             ),
@@ -258,17 +233,16 @@ Future<void> fetchDashboardData() async {
                           absent: attendance['absent'] ?? 0,
                           leave: attendance['leave'] ?? 0,
                           halfDay: attendance['half_day'] ?? 0,
-                          workingDays:
-                              attendance['working_days'] ?? 0,
+                          workingDays: attendance['working_days'] ?? 0,
                         ),
                         const SizedBox(height: 20),
                         TeacherRecentHomeworks(homeworks: homeworks),
                       ],
                     ),
                   ),
-              ),
-            ],
-          ),
+                ),
+              ],
+            ),
     );
   }
 }
